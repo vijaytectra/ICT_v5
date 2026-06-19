@@ -129,6 +129,8 @@ The `MarketSnapshot`/`generate_signal` model template and the step-by-step workf
 
 **Backtesting location**: runner scripts in `backtests/` (e.g. `fvg_sweep_backtest.py`); outputs are written to `results/` (gitignored). A reusable engine, when extracted, belongs in `src/ict/backtest/`.
 
+**Charts**: after saving any chart to `/tmp/`, always open it immediately with `subprocess.run(['open', path])` (or `os.system(f'open {path}')`) so it launches in Preview without the user having to ask.
+
 **Walk-forward approach**: Iterate day by day. Compute daily bias once at session open. Apply intraday signals on 5m bars within that day's session window. One trade per day (the model's rule of exclusion limits entries).
 
 ---

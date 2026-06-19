@@ -389,6 +389,102 @@ def detect_mss(
 
 
 # ---------------------------------------------------------------------------
+# Change in State of Delivery (CISD)
+# See knowledge/ict/market-structure/change-in-state-of-delivery.md
+# ---------------------------------------------------------------------------
+
+@concept("change-in-state-of-delivery", depends_on=["swing-points"])
+def detect_cisd(
+    df: pd.DataFrame,
+    direction: str,
+    sweep_time: pd.Timestamp,
+    max_leg_lookback: int = 10,
+    max_bars_after_sweep: int = 20,
+) -> Optional[dict]:
+    """
+    Detect a Change in State of Delivery (CISD).
+
+    Bullish CISD: after a sweep low, a candle closes above the highest high of the
+    consecutive bearish candles that formed the manipulation leg.
+
+    Bearish CISD: after a sweep high, a candle closes below the lowest low of the
+    consecutive bullish candles that formed the manipulation leg.
+
+    Args:
+        df:                   OHLCV bars.
+        direction:            'bullish' or 'bearish'.
+        sweep_time:           Timestamp of the sweep bar (the manipulation extreme).
+        max_leg_lookback:     Max bars to look back from sweep to find the leg.
+        max_bars_after_sweep: Max bars after the sweep to find the CISD close.
+
+    Returns:
+        dict {direction, reference_level, cisd_time, sweep_ref, bar_index,
+              leg_candle_count} or None.
+    """
+    if df is None or len(df) < 2:
+        return None
+
+    sweep_idx = df.index.get_indexer([sweep_time], method='nearest')[0]
+    if sweep_idx < 1:
+        return None
+
+    # Walk back from sweep to collect the consecutive manipulation-leg candles.
+    if direction == 'bullish':
+        # Bearish leg (close < open) drove price down into the sweep.
+        leg_highs = []
+        for i in range(sweep_idx, max(sweep_idx - max_leg_lookback, 0) - 1, -1):
+            bar = df.iloc[i]
+            if bar['close'] < bar['open']:
+                leg_highs.append(bar['high'])
+            else:
+                break
+        if not leg_highs:
+            # Sweep candle itself had no consecutive leg — use its high as floor.
+            leg_highs = [df.iloc[sweep_idx]['high']]
+        reference_level = max(leg_highs)
+    else:
+        # Bullish leg (close > open) drove price up into the sweep.
+        leg_lows = []
+        for i in range(sweep_idx, max(sweep_idx - max_leg_lookback, 0) - 1, -1):
+            bar = df.iloc[i]
+            if bar['close'] > bar['open']:
+                leg_lows.append(bar['low'])
+            else:
+                break
+        if not leg_lows:
+            leg_lows = [df.iloc[sweep_idx]['low']]
+        reference_level = min(leg_lows)
+
+    leg_count = len(leg_highs) if direction == 'bullish' else len(leg_lows)
+
+    # Search forward from sweep for a close through the reference level.
+    search_end = min(sweep_idx + max_bars_after_sweep + 1, len(df))
+    for i in range(sweep_idx + 1, search_end):
+        bar = df.iloc[i]
+        t = df.index[i]
+        if direction == 'bullish' and bar['close'] > reference_level:
+            return {
+                'direction':       'bullish',
+                'reference_level': reference_level,
+                'cisd_time':       t,
+                'sweep_ref':       sweep_time,
+                'bar_index':       i,
+                'leg_candle_count': leg_count,
+            }
+        if direction == 'bearish' and bar['close'] < reference_level:
+            return {
+                'direction':       'bearish',
+                'reference_level': reference_level,
+                'cisd_time':       t,
+                'sweep_ref':       sweep_time,
+                'bar_index':       i,
+                'leg_candle_count': leg_count,
+            }
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Relative Equal Highs / Lows
 # See knowledge/ict/liquidity/relative-equal-highs-lows.md
 # ---------------------------------------------------------------------------
