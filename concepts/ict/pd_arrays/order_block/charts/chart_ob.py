@@ -15,6 +15,9 @@ Output: charts/ob/ob-DXY-1h.png
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -189,7 +192,7 @@ def plot_ob_zone(ax, ob, df, bar_w, first_bull, first_bear):
 
 
 def main():
-    fixture = os.path.join(os.path.dirname(__file__), '..', 'Data', 'dxy_1h.csv')
+    fixture = str(_ROOT / 'Data' / 'dxy_1h.csv')
     df_full = load_fixture(fixture)
 
     # show a 4-week window so individual OBs are legible

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ict"
 version = "0.1.0"
-description = "ICT / CRT / Currency Merchant futures trading research library, backed by a markdown semantic layer in knowledge/"
+description = "ICT / CRT / Currency Merchant futures trading research library; semantic specs colocated with code under concepts/ and models/"
 requires-python = ">=3.10"
 dependencies = [
     "pandas",
@@ -19,7 +19,9 @@ dependencies = [
 dev = ["pytest"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["concepts*", "models*", "infrastructure*"]
+namespaces = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["concepts", "models", "infrastructure"]

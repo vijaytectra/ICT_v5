@@ -5,24 +5,24 @@ Sniper Model
 Composite ICT daily bias checklist: bias direction + stop hunt + SMT divergence
 + market structure shift must all align before a trade is actionable.
 
-Individual concept implementations live in src/ict/concepts/:
+Individual concept implementations live in concepts/:
   models/intermediate/daily_bias.py — three-signal HTF bias gate (order flow + draw + P/D)
   concepts/liquidity_sweep.py       — sweep / stop-hunt detection
   concepts/smt_divergence.py        — SMT divergence across correlated instruments
   concepts/market_structure.py      — MSS / CHoCH detection
 
-See knowledge/ict/daily-bias/daily-bias.md
+See daily-bias.md
 """
 
 import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ict.registry import concept
-from ict.models.intermediate.daily_bias import daily_bias_components, ohlc_candle_profile
-from ict.concepts.liquidity_sweep import detect_liquidity_sweep
-from ict.concepts.smt_divergence import detect_smt
-from ict.concepts.market_structure import detect_mss, SwingPointScanner
+from infrastructure.registry import concept
+from models.intermediate.daily_bias import daily_bias_components, ohlc_candle_profile
+from concepts import detect_liquidity_sweep
+from concepts import detect_smt
+from concepts import detect_mss, SwingPointScanner
 
 
 @dataclass

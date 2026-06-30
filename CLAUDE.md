@@ -27,12 +27,12 @@ Futures trading research project implementing ICT (Inner Circle Trader) concepts
 - New York: 13:30 – 20:00 (RTH); 08:00 – 13:30 (pre-market)
 - Regular Trading Hours (RTH): 13:30 – 20:00 UTC
 
-**Version control**: the cleaned CSVs and `raw/` downloads are **gitignored** (~1.1 GB, regenerable from the `Data/prep/` databento pipeline); `Data/prep/.env` (API key) is never committed; only `Data/prep/` is tracked. A 1000-row NQ slice lives in `tests/fixtures/` so tests run without the full dataset.
+**Version control**: the cleaned CSVs and `raw/` downloads are **gitignored** (~1.1 GB, regenerable from the `Data/prep/` databento pipeline); `Data/prep/.env` (API key) is never committed; only `Data/prep/` is tracked. A 1000-row NQ slice lives in `infrastructure/tests/fixtures/` so tests run without the full dataset.
 
-**Loading data** — use `DataLoader` from the installed `ict` package (`pip install -e .` once):
+**Loading data** — use `DataLoader` from the installed `infrastructure` package (`pip install -e .` once):
 
 ```python
-from ict import DataLoader
+from infrastructure import DataLoader
 
 loader = DataLoader(timeframe='5T', weeks=52, data_dir='Data')   # last 52 weeks of 5m bars
 nq = loader.read_NQ()   # returns DataFrame with DatetimeIndex
@@ -43,10 +43,11 @@ ym = loader.read_YM()
 # (legacy 'T'/'H' aliases are normalized internally for pandas >= 2.2)
 ```
 
-`DataLoader` has no reliable default location — pass `data_dir` pointing at the repo's `Data/`:
+`DataLoader` has no reliable default location — pass `data_dir` pointing at the repo's `Data/`. Scripts now live deep inside concept/model folders, so resolve the repo root by walking up to `pyproject.toml` (depth-independent) rather than counting `../`:
 ```python
-data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))  # from examples/ or backtests/
-loader = DataLoader(timeframe='5T', data_dir=data_dir)
+import pathlib
+_ROOT = next(p for p in pathlib.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
+loader = DataLoader(timeframe='5T', data_dir=str(_ROOT / 'Data'))
 ```
 
 ---
@@ -54,34 +55,39 @@ loader = DataLoader(timeframe='5T', data_dir=data_dir)
 ## Project Structure
 
 Key directories (`ls` the repo for the full tree):
-- `knowledge/` — semantic layer: concept libraries (markdown + YAML frontmatter), grouped `ict/`, `romeo/`, `currency-merchant/`
-- `src/ict/` — installable package: `registry.py` (`@concept` + lineage), `data/loader.py` (DataLoader), `concepts/` (primitives), `models/intermediate/` + `models/{ict,romeo,merchant}/` (see `src/ict/models/README.md`)
-- `strategies/notes/` — strategy write-ups · `backtests/` — runner scripts → `results/` (gitignored) · `configs/` — named experiments (see `configs/README.md`) · `analysis/` — backtest findings (see `analysis/README.md`)
-- `scripts/`, `examples/`, `tests/` (+ `fixtures/`), `legacy/` (NOT imported)
+- `concepts/` — **colocated semantic + code layer**: one folder per concept under `concepts/<author>/<category>/<name>/` (author = `ict`/`romeo`/`merchant`). **Everything for that concept lives in its folder**: spec (`<slug>.md`, markdown + YAML frontmatter), implementation (`<name>.py`), and whatever exists of `tests/`, `analysis/`, `backtests/`, `charts/`, `configs/`, `examples/`, `results/` (gitignored). Un-coded concepts are spec-only folders. The `concepts` package re-exports every detector's public API flat: `from concepts import find_fvgs, SwingPointScanner`.
+- `models/` — the **model layer** (full strategies): `models/intermediate/<name>/` + `models/{ict,romeo,merchant}/<name>/`, each a folder holding `<name>.py` + its spec + the same colocated `tests/`/`analysis/`/`backtests/`/`configs/`/`examples/`/`results/` subfolders (see `models/README.md`). Un-built models are spec-only folders.
+- `infrastructure/` — installable shared machinery (flat package): `registry.py` (`@concept` + lineage), `loader.py` (`DataLoader`), `report.py` (backtest report engine — `Mark`/`TradeViz`/`build_report`), `time_utils.py`. Also holds the repo-wide CLIs `lineage.py` / `fetch_dxy.py`, the reference docs `CHARTING.md` / `CHARTS.md`, and the cross-cutting test suite in `infrastructure/tests/` (+ `fixtures/`). Import: `from infrastructure import DataLoader`, `from infrastructure.registry import concept`.
+- `strategies/notes/` — strategy write-ups · `analysis/` — *cross-cutting* findings only (per-concept findings live in that concept's `analysis/` folder; see `analysis/README.md`)
+- `legacy/` (NOT imported). Example/chart/analysis scripts are colocated in each concept's/model's own `examples/`, `charts/`, `analysis/` subfolders — there is no top-level `examples/`.
+
+Scripts inside concept/model folders resolve the repo root by walking up to `pyproject.toml` (`_ROOT`/`_HERE`), so they're depth-independent; backtest configs sit in `<folder>/backtests/configs/` and outputs in `<folder>/backtests/results/`.
 
 **Three-layer architecture** — enforced by where files live:
 
 | Layer | Location | Rule |
 |---|---|---|
-| **Concept** | `src/ict/concepts/` | Implements exactly one KB concept; no imports from other concepts |
-| **Intermediate** | `src/ict/models/intermediate/` | Composes 2+ concepts into a reusable gate/signal (e.g. `daily_bias`) |
-| **Model** | `src/ict/models/<author>/` | Full trading strategy; composes concepts + intermediate models |
+| **Concept** | `concepts/<author>/<category>/<name>/` | Implements one KB concept (a multi-slug module may carry several specs); no imports from other concepts except via `from concepts import ...` |
+| **Intermediate** | `models/intermediate/<name>/` | Composes 2+ concepts into a reusable gate/signal (e.g. `daily_bias`) |
+| **Model** | `models/<author>/<name>/` | Full trading strategy; composes concepts + intermediate models |
 
-The markdown in `knowledge/` is the **semantic layer**: one file per concept, each with
+Each concept/model's `<slug>.md` is the **semantic layer**: one spec per concept, each with
 frontmatter (`name`, `aliases`, `category`, `related`, `parameters`, `detection`) and a
-"Detection Rules" section. `src/ict/registry.py` binds it to code:
+"Detection Rules" section, sitting in the same folder as the code that implements it.
+`infrastructure/registry.py` binds spec to code (it globs specs from `concepts/` and `models/`):
 
 - Register a detector with `@concept("<slug>")`.
 - Declare dependencies with `@concept("<slug>", depends_on=["other-slug", ...])` — this powers the lineage graph.
-- `tests/test_registry_coverage.py` fails if a concept's `detection:` flag and registered detectors disagree.
-- Pull default config from frontmatter with `ict.registry.params("<slug>")`.
-- Query the dependency tree: `ict.registry.lineage("<slug>")` returns the transitive dict; `ict.registry.mermaid("<slug>")` returns a Mermaid string.
-- Regenerate the README diagram: `.venv/bin/python scripts/lineage.py --update-readme`.
+- `infrastructure/tests/test_registry_coverage.py` fails if a concept's `detection:` flag and registered detectors disagree.
+- Pull default config from frontmatter with `infrastructure.registry.params("<slug>")`.
+- Query the dependency tree: `infrastructure.registry.lineage("<slug>")` returns the transitive dict; `infrastructure.registry.mermaid("<slug>")` returns a Mermaid string.
+- Regenerate the README diagram: `.venv/bin/python infrastructure/lineage.py --update-readme`.
 
-> **Code and semantic layer stay in sync — always.** The `knowledge/` markdown is the
-> spec; the detector is its implementation. **Whenever a detector's logic changes —
-> especially a correction the user gives to detection rules, thresholds, timing, or a
-> pool/validity condition — update the matching `knowledge/` file in the *same* change.**
+> **Code and semantic layer stay in sync — always.** The `<slug>.md` spec (colocated in
+> the concept's folder) is the spec; the `<name>.py` beside it is its implementation.
+> **Whenever a detector's logic changes — especially a correction the user gives to
+> detection rules, thresholds, timing, or a pool/validity condition — update the matching
+> `<slug>.md` in the same folder, in the *same* change.**
 > Reflect the new rule in the "Detection Rules" section (and `parameters:` frontmatter if
 > a value changed). A code fix without the corresponding knowledge update is incomplete and
 > leaves the spec lying. If a correction spans concepts (e.g. a liquidity rule touching the
@@ -91,7 +97,7 @@ frontmatter (`name`, `aliases`, `category`, `related`, `parameters`, `detection`
 
 ## Model Pattern & Adding a New Strategy
 
-The `MarketSnapshot`/`generate_signal` model template and the step-by-step workflow for adding a strategy live in **`src/ict/models/README.md`** — read it before writing a new model.
+The `MarketSnapshot`/`generate_signal` model template and the step-by-step workflow for adding a strategy live in **`models/README.md`** — read it before writing a new model.
 
 **Rule of exclusion** (applies to every model): if any required component is missing, `actionable=False` and no trade is taken. All checklist items must pass simultaneously.
 
@@ -127,7 +133,7 @@ The `MarketSnapshot`/`generate_signal` model template and the step-by-step workf
 3. Session breakdown: same stats sliced by Asia / London / NY
 4. Equity curve plot
 
-**Backtesting location**: runner scripts in `backtests/` (e.g. `fvg_sweep_backtest.py`); outputs are written to `results/` (gitignored). A reusable engine, when extracted, belongs in `src/ict/backtest/`.
+**Backtesting location**: runner scripts live in the `backtests/` subfolder of the concept/model they test (e.g. `models/ict/model_2022/backtests/fvg_sweep_backtest.py`); outputs are written to that folder's `backtests/results/` (gitignored — the `results/` ignore matches at any depth). A reusable engine, when extracted, belongs in `infrastructure/`.
 
 **Charts**: after saving any chart to `/tmp/`, always open it immediately with `subprocess.run(['open', path])` (or `os.system(f'open {path}')`) so it launches in Preview without the user having to ask.
 
@@ -143,10 +149,10 @@ The `MarketSnapshot`/`generate_signal` model template and the step-by-step workf
 
 ## Experiment Infrastructure
 
-Model config flags (`Model2022.DEFAULT_CONFIG`), named YAML configs, single-run backtests, `compare_runs.py`, and the `grid_search.py` sweep are all documented in **`configs/README.md`** — read it before running a config or grid search.
+Model config flags (`Model2022.DEFAULT_CONFIG`), named YAML configs, single-run backtests, `compare_runs.py`, and the `grid_search.py` sweep are all documented in **`models/ict/model_2022/backtests/configs/README.md`** — read it before running a config or grid search. (The configs and their runner now live with the model_2022 backtests.)
 
 ---
 
 ## Analysis Documents
 
-Quantitative backtest findings live in `analysis/`, organized by concept (mirroring `knowledge/`). The naming rule, required frontmatter, required sections, the never-edit-existing-files rule, and the what-goes-where table are in **`analysis/README.md`** — read and follow it whenever you write or update an analysis doc. Always add a row to that file's index table when you create a new analysis file.
+Quantitative backtest findings for a concept live in that concept's own `analysis/` folder (e.g. `concepts/ict/pd_arrays/fair_value_gap/analysis/`); cross-cutting findings live in the top-level `analysis/`. The naming rule, required frontmatter, required sections, the never-edit-existing-files rule, and the what-goes-where table are in **`analysis/README.md`** — read and follow it whenever you write or update an analysis doc. Always add a row to that file's index table when you create a new analysis file.

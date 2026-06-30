@@ -26,6 +26,9 @@ Outputs (written to results/<name>/):
 
 import argparse
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 
@@ -36,8 +39,9 @@ from plot_trades import (
     compute_stats, print_stats, plot_equity_curve,
 )
 
-from ict import DataLoader, Model2022, Model2022Snapshot
-from ict.backtest import Mark, TradeViz, build_report
+from infrastructure import DataLoader
+from models.ict.model_2022 import Model2022, Model2022Snapshot
+from infrastructure.report import Mark, TradeViz, build_report
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -47,8 +51,8 @@ DEFAULT_INSTRUMENT   = 'NQ'
 WARMUP_WEEKS         = 14
 EOD_EXIT_HOUR        = 16
 
-DATA_DIR     = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
-BASE_OUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results/runs'))
+DATA_DIR     = str(_ROOT / 'Data')
+BASE_OUT_DIR = str(_HERE / 'results' / 'runs')
 
 # Keys consumed by the backtest runner; everything else goes to Model2022(config=...)
 BACKTEST_KEYS = {'name', 'description', 'start_date', 'instrument', 'use_daily_bias'}

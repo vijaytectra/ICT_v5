@@ -6,19 +6,19 @@ classify_swing_liquidity()
     Tags each swing high/low as 'failure_swing' (untouched liquidity) or
     'no_liquidity' (already swept the prior swing). Implements the
     swing-without-liquidity concept.
-    See knowledge/currency-merchant/price-action/swing-without-liquidity.md
+    See swing-without-liquidity.md
 
 hpfs_pools()
     Wraps find_hpfs() to identify valid DOL candidates, optionally filtered
     to the correct side of the weekly open.
-    See knowledge/currency-merchant/price-action/failure-swing.md
+    See failure-swing.md
 """
 
 import pandas as pd
 from typing import Literal, Optional
 
-from ict.registry import concept
-from ict.concepts.hpfs import find_hpfs
+from infrastructure.registry import concept
+from concepts import find_hpfs
 
 
 @concept("swing-without-liquidity")

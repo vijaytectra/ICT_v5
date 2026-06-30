@@ -4,11 +4,14 @@ DXY Weekly Bias Chart — HPFS pools + MSS example.
 Uses find_hpfs() (LTC → inside-body scan) to mark HPFS levels, not the
 DOL pool-validity classifier.
 
-Usage: python charts/chart_dxy_mss.py
-Output: charts/dxy-weekly-bias/dxy-weekly-bias-DXY-<start_date>.png
+Usage: python concepts/ict/daily_bias/dxy_weekly_bias/charts/chart_dxy_mss.py
+Output: dxy-weekly-bias-DXY-<start_date>.png (beside this script)
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -18,10 +21,8 @@ import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import yfinance as yf
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from ict.concepts.hpfs import find_hpfs
-from ict.concepts.market_structure import detect_mss
+from concepts import find_hpfs
+from concepts import detect_mss
 
 # ── palette ──────────────────────────────────────────────────────────────────
 BG     = '#0d1117'
@@ -178,8 +179,7 @@ def main():
               labelcolor=FG, fontsize=8, loc='upper left')
 
     # ── save ─────────────────────────────────────────────────────────────────
-    out_dir  = os.path.join(os.path.dirname(__file__), 'dxy-weekly-bias')
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir  = os.path.dirname(__file__)
     out_path = os.path.join(out_dir, f'dxy-weekly-bias-DXY-{pd.Timestamp(start).strftime("%Y-%m-%d")}.png')
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor=BG)

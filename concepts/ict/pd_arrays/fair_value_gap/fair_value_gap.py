@@ -19,7 +19,7 @@ Bullish FVG (displacement candle is candle[i], moving up):
 import pandas as pd
 from dataclasses import dataclass
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @dataclass

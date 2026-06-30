@@ -5,13 +5,13 @@ SMT Divergence (Smart Money Technique)
 A crack in correlation between positively correlated instruments: one makes a new
 swing extreme while the other(s) fail to confirm.
 
-See knowledge/ict/entries/smt-divergence.md
+See smt-divergence.md
 """
 
 import pandas as pd
 from typing import Dict, Optional
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @concept("smt-divergence")

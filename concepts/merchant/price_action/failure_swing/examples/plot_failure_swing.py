@@ -11,12 +11,16 @@ Mirror logic for bullish HPFS (sweeps prior low, closes above, first low[j] > op
 """
 
 import os, sys
+import pathlib as _pl
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from ict import DataLoader
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
+
+sys.path.insert(0, str(_ROOT))
+from infrastructure import DataLoader
 
 # ── params ────────────────────────────────────────────────────────────────────
 SCAN_FORWARD   = 6    # max bars after LTC to search for the HPFS candle
@@ -26,7 +30,7 @@ CONTEXT_AFTER  = 25
 N_EXAMPLES     = 6
 
 # ── load data ─────────────────────────────────────────────────────────────────
-data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
+data_dir = str(_ROOT / 'Data')
 loader = DataLoader(timeframe='5T', weeks=26, data_dir=data_dir)
 df = loader.read_NQ().dropna(subset=['open','high','low','close']).reset_index()
 

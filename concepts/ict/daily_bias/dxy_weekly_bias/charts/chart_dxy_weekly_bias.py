@@ -12,23 +12,24 @@ Each panel shows DXY weekly candles with:
   - NQ direction that week (correct ✓ / incorrect ✗)
 
 Usage:
-    python scripts/chart_dxy_weekly_bias.py
+    python concepts/ict/daily_bias/dxy_weekly_bias/charts/chart_dxy_weekly_bias.py
 """
 
 import os, sys
+import pathlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import itertools
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+_ROOT = next(p for p in pathlib.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 
-from ict import DataLoader
-from ict.concepts.market_structure import SwingPointScanner, detect_mss
-from ict.concepts.pool_validity import classify_swing_liquidity
+from infrastructure import DataLoader
+from concepts import SwingPointScanner, detect_mss
+from concepts import classify_swing_liquidity
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Data'))
+DATA_DIR = str(_ROOT / 'Data')
 
 # ── Best params ───────────────────────────────────────────────────────────────
 SW_LB        = 3

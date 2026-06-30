@@ -1,13 +1,16 @@
 """
 Registry coverage guardrail.
 
-Enforces that the markdown semantic layer in ``knowledge/`` and the code
-detectors stay in sync. Importing ``ict`` triggers every ``@concept``
-registration (via ``ict/__init__.py``), so by the time these tests run the
-registry reflects all implemented detectors.
+Enforces that the colocated markdown specs (under ``concepts/`` and
+``models/``) and the code detectors stay in sync. Importing the
+``concepts`` package and the model packages triggers every ``@concept``
+registration as a side effect, so by the time these tests run the registry
+reflects all implemented detectors.
 """
-import ict  # noqa: F401  (import side effect: populates the registry)
-from ict.registry import load_concepts, detectors
+import concepts  # noqa: F401  (side effect: registers all concept detectors)
+import models.ict  # noqa: F401  (registers model-2022, sniper-model, daily-bias)
+import models.intermediate  # noqa: F401  (registers daily-bias)
+from infrastructure.registry import load_concepts, detectors
 
 
 def test_implemented_concepts_have_a_detector():
@@ -42,7 +45,7 @@ def test_registered_detectors_are_marked_implemented_or_partial():
 def test_knowledge_frontmatter_is_well_formed():
     """Every concept file must carry a category and a valid detection flag."""
     concepts = load_concepts()
-    assert len(concepts) > 50, f"only {len(concepts)} concepts loaded — knowledge/ not found?"
+    assert len(concepts) > 50, f"only {len(concepts)} concepts loaded — spec dirs not found?"
     valid = {"implemented", "partial", "not-implemented"}
     for slug, meta in concepts.items():
         assert meta.get("category"), f"{slug} ({meta.get('_path')}) missing category"

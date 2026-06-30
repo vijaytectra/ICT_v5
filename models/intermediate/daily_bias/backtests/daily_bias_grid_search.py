@@ -25,20 +25,23 @@ Usage:
 import argparse
 import itertools
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import time
 from typing import Optional
 
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict import DataLoader
-from ict.models.intermediate.daily_bias import daily_bias_components
+from infrastructure import DataLoader
+from models.intermediate.daily_bias import daily_bias_components
 
-DATA_DIR    = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
-RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results'))
+DATA_DIR    = str(_ROOT / 'Data')
+RESULTS_DIR = str(_HERE / 'results')
 
 # ─── Parameter grid ──────────────────────────────────────────────────────────
 

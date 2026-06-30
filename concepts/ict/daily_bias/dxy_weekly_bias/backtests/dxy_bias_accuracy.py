@@ -20,6 +20,9 @@ Usage:
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import itertools
 import warnings
@@ -29,13 +32,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict import DataLoader
-from ict.concepts.market_structure import SwingPointScanner, detect_mss, detect_cisd
-from ict.concepts.hpfs import find_hpfs
+from infrastructure import DataLoader
+from concepts import SwingPointScanner, detect_mss, detect_cisd
+from concepts import find_hpfs
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Data"))
+DATA_DIR = str(_ROOT / 'Data')
 
 # ── Load data ────────────────────────────────────────────────────────────────
 print("Loading data...")

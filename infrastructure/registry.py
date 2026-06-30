@@ -2,15 +2,15 @@
 Concept Registry
 ================
 
-Binds the markdown semantic layer in ``knowledge/`` to code detectors.
+Binds the colocated markdown semantic layer (``concepts/`` and ``models/``) to code detectors.
 
-Every concept file (``knowledge/<author>/<category>/<slug>.md``) carries YAML
+Every spec file (``concepts/<author>/<category>/<name>/<slug>.md`` or ``models/<author>/<name>/<slug>.md``) carries YAML
 frontmatter with a ``name`` (slug), a ``detection`` flag
 (``implemented`` | ``partial`` | ``not-implemented``), and a ``parameters`` block.
 
 Code detectors register against a slug with the :func:`concept` decorator::
 
-    from ict.registry import concept
+    from infrastructure.registry import concept
 
     @concept("fair-value-gap")
     def find_fvgs(df, ...): ...
@@ -20,7 +20,7 @@ Pass ``depends_on`` to declare what other slugs this detector composes::
     @concept("daily-bias", depends_on=["draw-on-liquidity", "premium-discount"])
     def daily_bias(df): ...
 
-``tests/test_registry_coverage.py`` then enforces that the flags and the code
+``infrastructure/tests/test_registry_coverage.py`` then enforces that the flags and the code
 agree, so the ``detection:`` flags can never silently lie, and the
 ``parameters:`` blocks stay the single source of default config.
 """
@@ -31,9 +31,15 @@ from typing import Callable
 
 import frontmatter
 
-# src/ict/registry.py  ->  repo root is two parents up from the package dir
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_KNOWLEDGE_DIR = _REPO_ROOT / "knowledge"
+# infrastructure/registry.py  ->  repo root is one parent up from the package dir
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+# Concept specs are colocated with their code under concepts/; model + intermediate
+# specs are colocated under models/.  (The old standalone knowledge/ tree was
+# dissolved into these folders.)
+_SPEC_DIRS = [
+    _REPO_ROOT / "concepts",
+    _REPO_ROOT / "models",
+]
 
 _DETECTORS: dict[str, Callable] = {}
 _DEPS: dict[str, list[str]] = {}
@@ -153,22 +159,26 @@ def _node_id(slug: str) -> str:
 
 
 def load_concepts(knowledge_dir: pathlib.Path | str | None = None) -> dict[str, dict]:
-    """Parse every concept file's frontmatter into ``{slug: metadata}``.
+    """Parse every spec file's frontmatter into ``{slug: metadata}``.
 
-    READMEs are skipped. ``metadata['_path']`` is the file path relative to the
-    repo root, for diagnostics.
+    Scans the colocated spec trees (``concepts/`` and ``models/``), or a
+    single ``knowledge_dir`` if one is passed (kept for tests/overrides). READMEs
+    are skipped. ``metadata['_path']`` is the file path relative to the repo root.
     """
-    root = pathlib.Path(knowledge_dir) if knowledge_dir else _KNOWLEDGE_DIR
+    roots = [pathlib.Path(knowledge_dir)] if knowledge_dir else _SPEC_DIRS
     out: dict[str, dict] = {}
-    for md in sorted(root.rglob("*.md")):
-        if md.name == "README.md":
+    for root in roots:
+        if not root.exists():
             continue
-        meta = dict(frontmatter.load(md).metadata)
-        name = meta.get("name")
-        if not name:
-            continue
-        meta["_path"] = str(md.relative_to(_REPO_ROOT))
-        out[name] = meta
+        for md in sorted(root.rglob("*.md")):
+            if md.name == "README.md":
+                continue
+            meta = dict(frontmatter.load(md).metadata)
+            name = meta.get("name")
+            if not name:
+                continue
+            meta["_path"] = str(md.relative_to(_REPO_ROOT))
+            out[name] = meta
     return out
 
 

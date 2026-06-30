@@ -24,6 +24,9 @@ CLI (standalone)
 from __future__ import annotations
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import argparse
 
@@ -519,7 +522,8 @@ def main():
         trades = trades.head(args.n)
 
     print(f"Plotting {len(trades)} trade(s)...")
-    from ict import DataLoader, Model2022
+    from infrastructure import DataLoader
+    from models.ict.model_2022 import Model2022
     loader = DataLoader(timeframe='1min', weeks=64, data_dir=DATA_DIR)
     df_1m  = loader.read_NQ()
     model  = Model2022()

@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from ict.concepts.pool_validity import hpfs_pools, find_raid_bar
+from concepts import hpfs_pools, find_raid_bar
 
 
 def make_ohlcv(rows: list[dict]) -> pd.DataFrame:

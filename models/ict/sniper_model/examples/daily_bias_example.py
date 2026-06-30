@@ -8,14 +8,18 @@ and determine if a setup is actionable based on ICT methodology.
 
 import sys
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 
-from ict import SniperModel, SniperSnapshot, DataLoader
+from models.ict.sniper_model import SniperModel, SniperSnapshot
+from infrastructure import DataLoader
 import pandas as pd
 
 
 def main():
     # Get data directory path (relative to script location)
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
+    data_dir = str(_ROOT / 'Data')
     
     # Load intraday data (5-minute) for the last 2 weeks
     intraday_loader = DataLoader(timeframe='5T', weeks=2, data_dir=data_dir)

@@ -6,11 +6,14 @@ Scans DXY weekly data for all instances where price closes through the far edge
 of a bearish or bullish BAG / Dark Pool, confirming a market structure shift
 without a traditional swing-level break.
 
-Usage:  python charts/chart_mss_type2.py
-Output: charts/dxy-weekly-bias/mss-type2-<start>.png
+Usage:  python concepts/ict/market_structure/market_structure_shift/charts/chart_mss_type2.py
+Output: mss-type2-<start>.png (beside this script)
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -20,10 +23,8 @@ import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import yfinance as yf
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from ict.concepts.break_away_gap import find_break_away_gaps, BreakAwayGap
-from ict.concepts.dark_pool import find_dark_pools, DarkPool
+from concepts import find_break_away_gaps, BreakAwayGap
+from concepts import find_dark_pools, DarkPool
 
 # ── palette ──────────────────────────────────────────────────────────────────
 BG      = '#0d1117'
@@ -259,8 +260,7 @@ def main():
     ax.legend(facecolor='#161b22', edgecolor='#30363d',
               labelcolor=FG, fontsize=8, loc='upper left')
 
-    out_dir  = os.path.join(os.path.dirname(__file__), 'dxy-weekly-bias')
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir  = os.path.dirname(__file__)
     out_path = os.path.join(out_dir, f'mss-type2-{pd.Timestamp(start).strftime("%Y-%m-%d")}.png')
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor=BG)

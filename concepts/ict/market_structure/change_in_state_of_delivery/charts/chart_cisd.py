@@ -1,22 +1,23 @@
 """
 CISD chart — finds a clean bullish CISD example on NQ 5m and plots it.
-Run: python scripts/chart_cisd.py
+Run: python concepts/ict/market_structure/change_in_state_of_delivery/charts/chart_cisd.py
 """
 
 import os
 import sys
+import pathlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+_ROOT = next(p for p in pathlib.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 
-from ict import DataLoader
-from ict.concepts.market_structure import SwingPointScanner, detect_cisd
+from infrastructure import DataLoader
+from concepts import SwingPointScanner, detect_cisd
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Data'))
+DATA_DIR = str(_ROOT / 'Data')
 
 # ── Load 5m NQ, last 4 weeks ──────────────────────────────────────────────────
 loader = DataLoader(timeframe='5T', weeks=4, data_dir=DATA_DIR)

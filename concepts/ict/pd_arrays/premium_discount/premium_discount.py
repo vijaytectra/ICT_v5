@@ -5,13 +5,13 @@ Premium / Discount & Equilibrium
 Within any dealing range the 50% level (EQ) splits price into premium (above)
 and discount (below). Never buy premium, never sell discount.
 
-See knowledge/ict/pd-arrays/premium-discount.md
+See premium-discount.md
 """
 
 import pandas as pd
 from typing import Optional
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @concept("premium-discount")

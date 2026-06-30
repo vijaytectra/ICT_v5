@@ -36,7 +36,7 @@ shift + displacement) per the standard entry sequence.
   is price revisiting a spent level, not a fresh grab. Each pool therefore carries a
   `formed_at` timestamp, and the breach search starts strictly after it (the pool's
   own formation must not self-trigger). Implemented as `first_breach()` /
-  `pool_is_live()` in `src/ict/concepts/liquidity_sweep.py`.
+  `pool_is_live()` in `liquidity_sweep.py`.
 - Sweep of a high: `high[t] > pool_level` AND `close[t'] < pool_level` for some
   `t' in [t, t + rejection_window_bars]`.
 - Strength features: penetration depth (points beyond level), time spent beyond,

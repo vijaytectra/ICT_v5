@@ -20,6 +20,9 @@ Output:
 import argparse
 import itertools
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import time
 
@@ -27,9 +30,9 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 from fvg_sweep_backtest import run_backtest, DATA_DIR, DEFAULT_START_DATE, WARMUP_WEEKS
-from ict import DataLoader
+from infrastructure import DataLoader
 
-BASE_RESULTS = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results/grids'))
+BASE_RESULTS = str(_HERE / 'results' / 'grids')
 
 # ─── Experiment definition ───────────────────────────────────────────────────
 #

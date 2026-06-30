@@ -11,24 +11,26 @@ Shows DXY weekly candles + NQ weekly close with:
   - Per-regime accuracy annotation
 
 Usage:
-    python analysis/dxy-weekly-bias/dxy_bias_regime_chart.py
+    python concepts/ict/daily_bias/dxy_weekly_bias/analysis/dxy_bias_regime_chart.py
 """
 
 import os
 import sys
+import pathlib
 
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_ROOT = next(p for p in pathlib.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 
-from ict import DataLoader
-from ict.concepts.market_structure import SwingPointScanner, detect_mss
-from ict.concepts.hpfs import find_hpfs
+from infrastructure import DataLoader
+from concepts import SwingPointScanner, detect_mss
+from concepts import find_hpfs
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'Data'))
+DATA_DIR = str(_ROOT / 'Data')
+import plotly.graph_objects as go  # noqa: F811 (re-import after path setup)
 
 # ── Best params ───────────────────────────────────────────────────────────────
 LTC_TYPE      = "ob"
@@ -45,6 +47,8 @@ WARMUP_WEEKS  = 52
 # ── Load data ─────────────────────────────────────────────────────────────────
 loader = DataLoader(timeframe="D", data_dir=DATA_DIR)
 dxy_daily = loader.read_DXY("daily")
+dxy_daily.index = dxy_daily.index.tz_localize(None)
+
 dxy_weekly = (
     dxy_daily.resample("W")
     .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
@@ -178,145 +182,221 @@ for s in shifts:
     print(f"  {s['confirm_time'].date()}  {s['equity_bias']:<8}  {s['source']:<4}  "
           f"acc={s['accuracy']*100:.0f}% ({s['n_correct']}/{s['n_weeks']} wks)")
 
-# ── Build Plotly figure ───────────────────────────────────────────────────────
+# ── Build Plotly figure — 3 panels ───────────────────────────────────────────
+# Row 1: DXY Weekly (pools, regimes)
+# Row 2: DXY Daily  (raid + MSS detail)
+# Row 3: NQ Weekly  (bias accuracy dots)
+
 fig = make_subplots(
-    rows=2, cols=1,
+    rows=3, cols=1,
     shared_xaxes=True,
-    row_heights=[0.65, 0.35],
-    vertical_spacing=0.04,
-    subplot_titles=["DXY Weekly (Candles)", "NQ Weekly (Close)"],
+    row_heights=[0.35, 0.40, 0.25],
+    vertical_spacing=0.03,
+    subplot_titles=[
+        "DXY Weekly — Pool Levels & Regime",
+        "DXY Daily — Raid + MSS Confirmation",
+        "NQ Weekly — Bias Accuracy (green=correct, red=wrong)",
+    ],
 )
 
-# DXY candlestick
+# ── Row 1: DXY Weekly candlestick ─────────────────────────────────────────────
 fig.add_trace(go.Candlestick(
     x=dxy_weekly.index,
     open=dxy_weekly["open"], high=dxy_weekly["high"],
     low=dxy_weekly["low"],   close=dxy_weekly["close"],
-    name="DXY", increasing_line_color="#26a641", decreasing_line_color="#f85149",
-    increasing_fillcolor="#26a641", decreasing_fillcolor="#f85149",
-    line_width=0.8,
+    name="DXY Weekly",
+    increasing_line_color="#26a641", decreasing_line_color="#f85149",
+    increasing_fillcolor="#26a641",  decreasing_fillcolor="#f85149",
+    line_width=0.6,
 ), row=1, col=1)
 
-# NQ close line
-fig.add_trace(go.Scatter(
-    x=nq_weekly.index, y=nq_weekly["close"],
-    name="NQ close", line=dict(color="#58a6ff", width=1.2),
-    mode="lines",
+# ── Row 2: DXY Daily candlestick ──────────────────────────────────────────────
+fig.add_trace(go.Candlestick(
+    x=dxy_daily.index,
+    open=dxy_daily["open"], high=dxy_daily["high"],
+    low=dxy_daily["low"],   close=dxy_daily["close"],
+    name="DXY Daily",
+    increasing_line_color="#3fb950", decreasing_line_color="#da3633",
+    increasing_fillcolor="#3fb950",  decreasing_fillcolor="#da3633",
+    line_width=0.5,
 ), row=2, col=1)
 
-# Regime shading
+# ── Row 3: NQ Weekly close line ───────────────────────────────────────────────
+fig.add_trace(go.Scatter(
+    x=nq_weekly.index, y=nq_weekly["close"],
+    name="NQ Weekly",
+    line=dict(color="#58a6ff", width=1.0),
+    mode="lines",
+), row=3, col=1)
+
+# ── Regime shading + labels across all panels ─────────────────────────────────
 BULL_FILL = "rgba(38,166,65,0.10)"
 BEAR_FILL = "rgba(248,81,73,0.10)"
 
-for k, shift in enumerate(shifts):
+for shift in shifts:
     if shift["regime_start_ts"] is None:
         continue
-    color = BULL_FILL if shift["equity_bias"] == "bullish" else BEAR_FILL
+    color   = BULL_FILL if shift["equity_bias"] == "bullish" else BEAR_FILL
     x0, x1 = shift["regime_start_ts"], shift["regime_end_ts"]
     acc_pct = shift["accuracy"] * 100
-    label = f"{shift['equity_bias'][0].upper()} {acc_pct:.0f}% ({shift['n_correct']}/{shift['n_weeks']}w)"
+    label   = f"NQ {shift['equity_bias'][0].upper()} {acc_pct:.0f}% ({shift['n_correct']}/{shift['n_weeks']}w)"
 
-    for row in [1, 2]:
-        fig.add_vrect(
-            x0=x0, x1=x1, fillcolor=color, line_width=0,
-            row=row, col=1,
-        )
+    for row in [1, 2, 3]:
+        fig.add_vrect(x0=x0, x1=x1, fillcolor=color, line_width=0, row=row, col=1)
 
-    # Regime label on top panel
-    mid_ts = x0 + (x1 - x0) / 2
-    dxy_range = dxy_weekly.loc[x0:x1]
-    y_label = dxy_range["high"].max() * 1.001 if not dxy_range.empty else dxy_weekly["high"].max()
+    # Label on weekly panel
+    mid_ts  = x0 + (x1 - x0) / 2
+    dxy_rng = dxy_weekly.loc[x0:x1]
+    y_top   = dxy_rng["high"].max() if not dxy_rng.empty else dxy_weekly["high"].max()
     fig.add_annotation(
-        x=mid_ts, y=y_label,
-        text=label,
-        showarrow=False,
-        font=dict(size=9, color="#26a641" if shift["equity_bias"] == "bullish" else "#f85149"),
+        x=mid_ts, y=y_top,
+        text=label, showarrow=False,
+        font=dict(size=8, color="#26a641" if shift["equity_bias"] == "bullish" else "#f85149"),
         xanchor="center", yanchor="bottom",
         row=1, col=1,
     )
 
-# Pool level lines + raid + MSS markers
+# ── Pool level lines + weekly raid/MSS markers (Row 1) ────────────────────────
 for shift in shifts:
+    pool_ts    = shift["pool_time"]
     raid_ts    = shift["raid_time"]
     confirm_ts = shift["confirm_time"]
-    pool_ts    = shift["pool_time"]
     pool_lvl   = shift["pool_level"]
     is_bull    = shift["equity_bias"] == "bullish"
     color      = "#26a641" if is_bull else "#f85149"
-    src_label  = shift["source"].upper()
+    src        = shift["source"].upper()
 
-    # Pool level dashed line (pool_time → raid_time)
+    # Dashed gold pool level line on weekly
     fig.add_shape(
         type="line", x0=pool_ts, x1=raid_ts, y0=pool_lvl, y1=pool_lvl,
-        line=dict(color="#e3b341", width=1, dash="dash"),
+        line=dict(color="#e3b341", width=1.2, dash="dash"),
+        row=1, col=1,
+    )
+    fig.add_annotation(
+        x=pool_ts, y=pool_lvl,
+        text=f"{src} {pool_lvl:.2f}",
+        showarrow=False, xanchor="right",
+        font=dict(size=7, color="#e3b341"),
         row=1, col=1,
     )
 
-    # Raid marker
-    raid_row = dxy_weekly.loc[raid_ts]
-    raid_y   = raid_row["low"] if is_bull else raid_row["high"]
+    # Weekly raid marker
+    wr = dxy_weekly.loc[raid_ts]
+    raid_y_w = wr["low"] if is_bull else wr["high"]
     fig.add_trace(go.Scatter(
-        x=[raid_ts], y=[raid_y],
-        mode="markers+text",
+        x=[raid_ts], y=[raid_y_w],
+        mode="markers",
         marker=dict(symbol="triangle-up" if is_bull else "triangle-down",
-                    size=10, color=color),
-        text=[f"RAID<br>{src_label}"],
-        textposition="bottom center" if is_bull else "top center",
-        textfont=dict(size=8, color="#8b949e"),
+                    size=10, color=color, line=dict(width=1, color="white")),
+        name=f"Raid ({src})",
         showlegend=False,
-        hovertemplate=f"Raid {raid_ts.date()}<br>Pool: {pool_lvl:.3f}<br>Source: {src_label}<extra></extra>",
+        hovertemplate=f"<b>RAID</b> {raid_ts.date()}<br>Pool: {pool_lvl:.3f}<br>{src}<extra></extra>",
     ), row=1, col=1)
 
-    # MSS confirmation marker
-    conf_row = dxy_weekly.loc[confirm_ts]
-    conf_y   = conf_row["close"]
+    # Weekly MSS star
+    cr = dxy_weekly.loc[confirm_ts]
     fig.add_trace(go.Scatter(
-        x=[confirm_ts], y=[conf_y],
+        x=[confirm_ts], y=[cr["close"]],
         mode="markers+text",
-        marker=dict(symbol="star", size=12, color=color),
-        text=["MSS"],
+        marker=dict(symbol="star", size=14, color=color),
+        text=["MSS↓" if not is_bull else "MSS↑"],
         textposition="top center" if is_bull else "bottom center",
-        textfont=dict(size=9, color=color, family="Arial Black"),
+        textfont=dict(size=9, color=color),
         showlegend=False,
-        hovertemplate=f"MSS {confirm_ts.date()}<br>→ NQ {shift['equity_bias']}<br>Regime acc: {shift['accuracy']*100:.0f}%<extra></extra>",
+        hovertemplate=f"<b>MSS</b> {confirm_ts.date()}<br>→ NQ {shift['equity_bias']}<br>Regime acc: {shift['accuracy']*100:.0f}%<extra></extra>",
     ), row=1, col=1)
 
-# NQ MSS dots (correct=green, wrong=red)
+# ── Daily raid + MSS markers (Row 2) ─────────────────────────────────────────
+for shift in shifts:
+    raid_ts    = shift["raid_time"]
+    confirm_ts = shift["confirm_time"]
+    pool_lvl   = shift["pool_level"]
+    is_bull    = shift["equity_bias"] == "bullish"
+    color      = "#26a641" if is_bull else "#f85149"
+
+    # Pool level extended onto daily chart around the raid window
+    window_start = raid_ts - pd.Timedelta(weeks=6)
+    window_end   = confirm_ts + pd.Timedelta(weeks=3)
+    fig.add_shape(
+        type="line", x0=window_start, x1=window_end,
+        y0=pool_lvl, y1=pool_lvl,
+        line=dict(color="#e3b341", width=1, dash="dot"),
+        row=2, col=1,
+    )
+
+    # Daily raid marker (find exact daily bar)
+    daily_window = dxy_daily.loc[raid_ts - pd.Timedelta(days=8) : raid_ts + pd.Timedelta(days=1)]
+    if not daily_window.empty:
+        if is_bull:
+            raid_daily_bar = daily_window[daily_window["low"] < pool_lvl]
+        else:
+            raid_daily_bar = daily_window[daily_window["high"] > pool_lvl]
+        if not raid_daily_bar.empty:
+            rd_ts = raid_daily_bar.index[-1]
+            rd    = dxy_daily.loc[rd_ts]
+            fig.add_trace(go.Scatter(
+                x=[rd_ts],
+                y=[rd["low"] if is_bull else rd["high"]],
+                mode="markers",
+                marker=dict(symbol="triangle-up" if is_bull else "triangle-down",
+                            size=12, color=color, line=dict(width=1, color="white")),
+                showlegend=False,
+                hovertemplate=f"<b>RAID (daily)</b> {rd_ts.date()}<br>Pool: {pool_lvl:.3f}<extra></extra>",
+            ), row=2, col=1)
+
+    # Daily MSS marker
+    daily_conf = dxy_daily.loc[confirm_ts - pd.Timedelta(days=8) : confirm_ts + pd.Timedelta(days=1)]
+    if not daily_conf.empty:
+        cd_ts = daily_conf.index[-1]
+        cd    = dxy_daily.loc[cd_ts]
+        fig.add_trace(go.Scatter(
+            x=[cd_ts], y=[cd["close"]],
+            mode="markers+text",
+            marker=dict(symbol="star", size=14, color=color),
+            text=["MSS"],
+            textposition="top center" if is_bull else "bottom center",
+            textfont=dict(size=9, color=color),
+            showlegend=False,
+            hovertemplate=f"<b>MSS (daily)</b> {cd_ts.date()}<br>→ NQ {shift['equity_bias']}<extra></extra>",
+        ), row=2, col=1)
+
+# ── NQ weekly accuracy dots (Row 3) ──────────────────────────────────────────
 for shift in shifts:
     if shift["regime_start_ts"] is None:
         continue
-    regime_ts = [t for t in bars_ts
-                 if shift["regime_start_ts"] <= t <= shift["regime_end_ts"]]
-    regime_nq = nq_weekly["close"].reindex(regime_ts).dropna()
+    regime_ts  = [t for t in bars_ts if shift["regime_start_ts"] <= t <= shift["regime_end_ts"]]
+    regime_nq  = nq_weekly["close"].reindex(regime_ts).dropna()
     regime_dir = nq_dir.reindex(regime_ts).dropna()
-    correct = regime_dir == shift["equity_bias"]
-    colors  = ["#26a641" if c else "#f85149" for c in correct]
+    correct    = regime_dir == shift["equity_bias"]
+    dot_colors = ["#26a641" if c else "#f85149" for c in correct]
     fig.add_trace(go.Scatter(
         x=regime_nq.index, y=regime_nq.values,
         mode="markers",
-        marker=dict(size=5, color=colors),
+        marker=dict(size=5, color=dot_colors),
         showlegend=False,
         hovertemplate="NQ %{y:.0f}<extra></extra>",
-    ), row=2, col=1)
+    ), row=3, col=1)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 fig.update_layout(
     title=dict(
         text="DXY Weekly Bias — HPFS + REH/REL → MSS Structural Regimes<br>"
-             f"<sub>ltc=ob  sw_lb={SW_LB}  rel_tol={REL_TOL}  rx_bars={RX_BARS}  rx_type={RX_TYPE}</sub>",
-        font=dict(size=16, color="#e6edf3"),
+             f"<sub>ltc=ob  sw_lb={SW_LB}  rel_tol={REL_TOL}  rx_bars={RX_BARS}  rx_type={RX_TYPE}  |  "
+             f"Pool: Weekly HPFS/REH/REL  ·  Confirm: Weekly MSS  ·  Bias: NQ Weekly direction</sub>",
+        font=dict(size=15, color="#e6edf3"),
     ),
     paper_bgcolor="#0d1117",
     plot_bgcolor="#0d1117",
     font=dict(color="#8b949e", size=10),
     xaxis_rangeslider_visible=False,
     xaxis2_rangeslider_visible=False,
-    height=800,
+    xaxis3_rangeslider_visible=False,
+    height=1000,
     legend=dict(bgcolor="#161b22", bordercolor="#30363d", font=dict(size=10)),
     hovermode="x unified",
 )
 
-for axis in ["xaxis", "xaxis2", "yaxis", "yaxis2"]:
+for axis in ["xaxis", "xaxis2", "xaxis3", "yaxis", "yaxis2", "yaxis3"]:
     fig.update_layout(**{axis: dict(
         gridcolor="#21262d",
         zerolinecolor="#21262d",

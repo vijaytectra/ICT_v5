@@ -55,13 +55,13 @@ backtests/
                               plot_equity_curve           — static equity curve PNG
                               draw_candles, ts_to_x       — matplotlib candlestick primitives
                               plot_trade                  — per-trade matplotlib PNG (CLI tool)
-src/ict/backtest/
+infrastructure/
   report.py               — model-agnostic Plotly HTML engine (Mark, TradeViz, build_report)
 ```
 
 ### Adding the report to a new model's runner
 
-1. `from ict.backtest import Mark, TradeViz, build_report`
+1. `from infrastructure.report import Mark, TradeViz, build_report`
 2. `from plot_trades import simulate_fill, simulate_exit, calc_pnl_pts, compute_stats, print_stats, plot_equity_curve, localize_to`
 3. Write `build_snapshot(df_1m, session_ts) -> ModelSnapshot` for your model's data slicing.
 4. Write `signal_to_marks(signal, fill, exit_info) -> list[Mark]` — one `Mark` per overlay

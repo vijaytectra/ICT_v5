@@ -4,10 +4,10 @@ Targets & Exits
 
 Liquidity-to-liquidity targeting with a minimum R:R gate.
 
-See knowledge/ict/entries/targets-and-exits.md
+See targets-and-exits.md
 """
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @concept("targets-and-exits")

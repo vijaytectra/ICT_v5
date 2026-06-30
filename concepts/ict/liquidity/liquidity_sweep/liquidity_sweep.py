@@ -5,14 +5,14 @@ Liquidity Sweep / Stop Hunt
 Price trades beyond a liquidity pool, triggers resting stops, then reverses back
 inside. The rejection distinguishes a sweep (reversal signal) from a run (continuation).
 
-See knowledge/ict/liquidity/liquidity-sweep-stop-hunt.md
+See liquidity-sweep-stop-hunt.md
 """
 
 import pandas as pd
 from typing import Optional, Tuple
 
-from ict.registry import concept
-from ict.utils.time_utils import localize_like
+from infrastructure.registry import concept
+from infrastructure.time_utils import localize_like
 
 
 def first_breach(

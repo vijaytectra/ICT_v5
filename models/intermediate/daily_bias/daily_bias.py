@@ -14,7 +14,7 @@ day. If signals conflict the result is 'neutral' → no trade (rule of exclusion
 Lives in models/intermediate/ because it composes multiple concepts rather than
 implementing a single primitive — it is itself a building block for full models.
 
-See knowledge/ict/daily-bias/daily-bias.md
+See daily-bias.md
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ from __future__ import annotations
 import pandas as pd
 from typing import Optional
 
-from ict.registry import concept
-from ict.concepts.draw_on_liquidity import draw_on_liquidity
-from ict.concepts.premium_discount import premium_discount
-from ict.concepts.ohlc_profiles import ohlc_candle_profile  # noqa: F401
+from infrastructure.registry import concept
+from concepts import draw_on_liquidity
+from concepts import premium_discount
+from concepts import ohlc_candle_profile  # noqa: F401
 
 
 @concept("daily-bias", depends_on=["draw-on-liquidity", "premium-discount", "ohlc-candle-profiles"])

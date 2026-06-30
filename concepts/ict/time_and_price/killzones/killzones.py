@@ -5,14 +5,14 @@ Killzones
 Boolean bar masks for the recurring institutional order-flow windows.
 Time gates price — the same pattern outside a killzone is not the same trade.
 
-See knowledge/ict/time-and-price/killzones.md
+See killzones.md
 """
 
 import pandas as pd
 from typing import List, Tuple
 
-from ict.registry import concept
-from ict.utils.time_utils import ny_index
+from infrastructure.registry import concept
+from infrastructure.time_utils import ny_index
 
 # Default windows in NY local time (HH:MM, HH:MM)
 LONDON_KZ    = ('02:00', '05:00')

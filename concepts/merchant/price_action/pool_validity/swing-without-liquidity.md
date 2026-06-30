@@ -43,6 +43,6 @@ DOL candidate.
 
 ## Detection
 
-Implemented in `src/ict/concepts/pool_validity.py` → `classify_swing_liquidity(swing_points, swing_type)`.
+Implemented in `pool_validity.py` → `classify_swing_liquidity(swing_points, swing_type)`.
 Takes `swing_highs` or `swing_lows` from `SwingPointScanner` and returns the
 same DataFrame with a `'classification'` column: `'failure_swing'` or `'no_liquidity'`.

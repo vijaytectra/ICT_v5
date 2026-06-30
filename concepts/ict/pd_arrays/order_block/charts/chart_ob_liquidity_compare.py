@@ -14,6 +14,9 @@ Output: charts/ob/ob-liquidity-compare-DXY-1h-<date>.png
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -22,11 +25,11 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict.concepts.order_block import find_order_blocks, OrderBlock
-from ict.concepts.hpfs import find_hpfs
-from ict.concepts.market_structure import SwingPointScanner
+from concepts import find_order_blocks, OrderBlock
+from concepts import find_hpfs
+from concepts import SwingPointScanner
 
 # ── palette ───────────────────────────────────────────────────────────────────
 BG       = '#0d1117'
@@ -219,7 +222,7 @@ def style_ax(ax, title):
 
 
 def main():
-    fixture = os.path.join(os.path.dirname(__file__), '..', 'Data', 'dxy_1h.csv')
+    fixture = str(_ROOT / 'Data' / 'dxy_1h.csv')
     df_full = load_fixture(fixture)
 
     # 2-week window

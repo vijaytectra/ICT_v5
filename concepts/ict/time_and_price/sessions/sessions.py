@@ -4,14 +4,14 @@ Sessions & Reference Ranges
 
 Opening range, session high/low extraction, and reference range computation.
 
-See knowledge/ict/time-and-price/sessions-and-ranges.md
+See sessions-and-ranges.md
 """
 
 import pandas as pd
 from typing import Optional
 
-from ict.registry import concept
-from ict.utils.time_utils import ny_index
+from infrastructure.registry import concept
+from infrastructure.time_utils import ny_index
 
 
 @concept("sessions-and-ranges")
@@ -68,7 +68,7 @@ def ons_range(
 
     ONS: 05:00–09:15 NY — the pre-market window bridging globex overnight to
     the RTH open. Its high/low are intraday liquidity pools; see
-    knowledge/ict/time-and-price/sessions-and-ranges.md.
+    sessions-and-ranges.md.
     """
     return session_high_low(df, session_date, start_ny='05:00', end_ny='09:15')
 
@@ -84,7 +84,7 @@ def chicago_range(
     become liquidity pools once the window closes (formed_at = range_end). Can be
     swept same-day in the PM killzone (13:30–16:00 NY), or carried to the next day
     as a standing pool alongside PDH/PDL; see
-    knowledge/ict/time-and-price/sessions-and-ranges.md.
+    sessions-and-ranges.md.
     """
     return session_high_low(df, session_date, start_ny='09:15', end_ny='12:00')
 

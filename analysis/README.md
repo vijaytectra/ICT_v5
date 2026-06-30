@@ -1,6 +1,6 @@
 # Analysis
 
-Post-backtest research documents — one file per study, organized by concept (mirroring `knowledge/`).
+Post-backtest research documents — one file per study, for cross-cutting studies; per-concept findings live in that concept's own `analysis/` folder under `concepts/`.
 
 ---
 
@@ -17,7 +17,7 @@ analysis/entries/model-2022-fvg-entry-2026-07-01.md
 analysis/killzones/model-2022-killzone-timing-2026-07-15.md
 ```
 
-- **`{concept}`** — matches a folder name under `knowledge/ict/` (e.g. `daily-bias`, `entries`, `killzones`, `pd-arrays`)
+- **`{concept}`** — matches a concept category under `concepts/ict/` (e.g. `daily-bias`, `entries`, `killzones`, `pd-arrays`)
 - **`{model}`** — the model being studied (e.g. `model-2022`, `romeo-crt`)
 - **`{YYYY-MM-DD}`** — date the analysis was run, not the backtest date range
 
@@ -55,7 +55,7 @@ Then at minimum:
 
 | Content | Goes in |
 |---|---|
-| Concept definitions, detection rules, ICT semantics | `knowledge/` |
+| Concept definitions, detection rules, ICT semantics | each concept's `<slug>.md` under `concepts/` |
 | Human strategy write-ups from video transcripts | `strategies/notes/` |
 | Backtest runner scripts | `backtests/` |
 | Named experiment configs | `configs/{model}/` |

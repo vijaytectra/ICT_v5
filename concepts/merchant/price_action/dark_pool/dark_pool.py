@@ -13,7 +13,7 @@ Complements the Break Away Gap (BAG):
   BAG        — displacement through no-liq swing WITH an FVG
   Dark Pool  — displacement through no-liq swing WITHOUT an FVG
 
-See knowledge/currency-merchant/price-action/dark-pool.md
+See dark-pool.md
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Literal
 
-from ict.registry import concept
-from ict.concepts.market_structure import SwingPointScanner
-from ict.concepts.pool_validity import classify_swing_liquidity
-from ict.concepts.break_away_gap import find_break_away_gaps
+from infrastructure.registry import concept
+from concepts import SwingPointScanner
+from concepts import classify_swing_liquidity
+from concepts import find_break_away_gaps
 
 
 @dataclass

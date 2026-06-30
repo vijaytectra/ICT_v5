@@ -9,7 +9,7 @@ parameters:
   signals_required: "order flow + draw on liquidity + 4H structure must align; P/D and prior-day midpoint are reference signals"
   bias_lock: "set pre-session; never switch mid-session after manipulation phase"
   unclear_action: "skip (rule of exclusion — no trade when bias is neutral)"
-detection: implemented   # ict.concepts.daily_bias — daily_bias() / daily_bias_components()
+detection: implemented   # daily_bias.py — daily_bias() / daily_bias_components()
 ---
 
 # Daily Bias

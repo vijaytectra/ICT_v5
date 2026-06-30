@@ -12,7 +12,7 @@ Logic:
   4. Buy-side pool raid + bearish DXY reaction  → DXY going lower → equities BULLISH.
      Sell-side pool raid + bullish DXY reaction → DXY going higher → equities BEARISH.
 
-See knowledge/currency-merchant/price-action/dxy-bias.md
+See dxy-bias.md
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ from __future__ import annotations
 from typing import Optional, Literal
 import pandas as pd
 
-from ict.registry import concept
-from ict.concepts.market_structure import SwingPointScanner, detect_mss, detect_cisd
-from ict.concepts.pool_validity import classify_swing_liquidity
+from infrastructure.registry import concept
+from concepts import SwingPointScanner, detect_mss, detect_cisd
+from concepts import classify_swing_liquidity
 
 
 @concept(

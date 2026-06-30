@@ -6,7 +6,7 @@ A Break Away Gap is an FVG whose displacement candle traded through a
 no-liquidity swing point (a swing whose extreme already consumed the prior
 swing's liquidity).
 
-See knowledge/currency-merchant/price-action/break-away-gap.md
+See break-away-gap.md
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Literal
 
-from ict.registry import concept
-from ict.concepts.fair_value_gap import find_fvgs, FVG
-from ict.concepts.market_structure import SwingPointScanner
-from ict.concepts.pool_validity import classify_swing_liquidity
+from infrastructure.registry import concept
+from concepts import find_fvgs, FVG
+from concepts import SwingPointScanner
+from concepts import classify_swing_liquidity
 
 
 @dataclass

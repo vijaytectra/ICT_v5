@@ -2,19 +2,21 @@
 Concept Lineage — Mermaid diagram generator.
 
 Usage:
-    python scripts/lineage.py                  # print full diagram
-    python scripts/lineage.py model-2022       # print one model's transitive graph
-    python scripts/lineage.py --update-readme  # regenerate the README section
+    python infrastructure/lineage.py                  # print full diagram
+    python infrastructure/lineage.py model-2022       # print one model's transitive graph
+    python infrastructure/lineage.py --update-readme  # regenerate the README section
 """
 
 import sys
 import pathlib
 
 # ensure the package is importable when run from the repo root
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-import ict  # noqa: F401  (populates the registry via side-effect imports)
-from ict import registry
+import concepts  # noqa: F401  (registers all concept detectors)
+import models.ict  # noqa: F401  (registers model-2022, sniper-model, daily-bias)
+import models.intermediate  # noqa: F401  (registers daily-bias)
+from infrastructure import registry
 
 _README = pathlib.Path(__file__).resolve().parents[1] / "README.md"
 _START  = "<!-- lineage-start -->"

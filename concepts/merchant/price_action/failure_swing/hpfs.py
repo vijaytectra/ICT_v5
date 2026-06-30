@@ -15,7 +15,7 @@ Two variants share the same HPFS scan logic but differ in how the LTC is identif
 HPFS scan (same for both): first candle after LTC where extreme is inside the
 LTC body — high[j] < open[LTC] (bearish) or low[j] > open[LTC] (bullish).
 
-See knowledge/currency-merchant/price-action/failure-swing.md
+See failure-swing.md
 """
 
 from __future__ import annotations

@@ -6,7 +6,7 @@
 >
 > **Context warnings for our futures workflow**:
 > - All session times in this document are **GMT, forex-market context** (2020-era ICT). Our canonical killzones
->   for index futures live in [knowledge/ict/time-and-price/killzones.md](../../knowledge/ict/time-and-price/killzones.md)
+>   for index futures live in [concepts/ict/time_and_price/killzones/killzones.md](../../concepts/ict/time_and_price/killzones/killzones.md)
 >   and are defined in New York time.
 > - Pip-based risk numbers (20–30 pip stops, 50-pip Asian range, etc.) are forex-calibrated and do not transfer
 >   1:1 to ES/NQ/YM points.
@@ -406,7 +406,7 @@ releases per currency listed in the source PDF p. 90.)*
   ![RRT](assets/ict-forex-notes/p097-1.png)
 - **Head & shoulders** (neckline-to-head projected from the break; expect a neckline retest),
   **Three Indians / three pushes** with **Wolfe waves** (point 5 false-breaks the 1–3 trendline; target along
-  the 1–4 line) — promoted to a concept file: [three-indians](../../knowledge/ict/models/three-indians.md). ![H&S](assets/ict-forex-notes/p098-1.png) ![Wolfe](assets/ict-forex-notes/p099-1.png)
+  the 1–4 line) — promoted to a concept file: [three-indians](../../models/ict/three_indians/three-indians.md). ![H&S](assets/ict-forex-notes/p098-1.png) ![Wolfe](assets/ict-forex-notes/p099-1.png)
 - **Triangles, bull/bear flags, coil expansion**: measured-move projections.
   ![Flags](assets/ict-forex-notes/p100-2.png) ![Coil](assets/ict-forex-notes/p101-1.png)
 - **Turtle soup**: break of the prior 20-day high/low that snaps back into the range — fade it. LTF version =

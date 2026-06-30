@@ -12,23 +12,23 @@ Checklist (bearish — inverted for bullish):
   5. Entry/stop  — limit into FVG; stop beyond swept extreme.
   6. Target      — opposing liquidity, 1:3 R:R floor.
 
-See knowledge/ict/models/model-2022.md
+See model-2022.md
 """
 
 import pandas as pd
 from dataclasses import dataclass
 from typing import Optional
 
-from ict.registry import concept, params as registry_params
-from ict.models.intermediate.daily_bias import daily_bias_components
-from ict.concepts.fair_value_gap import find_fvgs, FVG
-from ict.concepts.killzones import session_mask
-from ict.concepts.liquidity_sweep import first_breach
-from ict.concepts.market_structure import detect_mss, find_relative_equal_levels
-from ict.concepts.premium_discount import premium_discount
-from ict.concepts.sessions import opening_range, ons_range, chicago_range
-from ict.concepts.targets import find_liquidity_target
-from ict.utils.time_utils import localize_like
+from infrastructure.registry import concept, params as registry_params
+from models.intermediate.daily_bias import daily_bias_components
+from concepts import find_fvgs, FVG
+from concepts import session_mask
+from concepts import first_breach
+from concepts import detect_mss, find_relative_equal_levels
+from concepts import premium_discount
+from concepts import opening_range, ons_range, chicago_range
+from concepts import find_liquidity_target
+from infrastructure.time_utils import localize_like
 
 
 @dataclass

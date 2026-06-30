@@ -14,6 +14,9 @@ Usage:
 
 import argparse
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 
 import pandas as pd
@@ -21,7 +24,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from plot_trades import compute_stats
 
-BASE_RESULTS = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results/runs'))
+BASE_RESULTS = str(_HERE / 'results' / 'runs')
 
 SORT_ALIASES = {
     'pf':     'profit_factor',

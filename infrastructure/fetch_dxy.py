@@ -2,7 +2,7 @@
 Download DXY (US Dollar Index) data from Yahoo Finance and save to Data/.
 
 Usage:
-    python scripts/fetch_dxy.py
+    python infrastructure/fetch_dxy.py
 
 Outputs:
     Data/dxy_daily.csv  — daily bars from 2010-01-01 to present

@@ -6,14 +6,14 @@ The nearest untested swing pool in the bias direction — the level price is
 being drawn toward. Bullish when the nearest unswept swing high is closer
 than the nearest unswept swing low.
 
-See knowledge/ict/daily-bias/draw-on-liquidity.md
+See draw-on-liquidity.md
 """
 
 import pandas as pd
 from typing import Optional
 
-from ict.registry import concept
-from ict.concepts.market_structure import SwingPointScanner
+from infrastructure.registry import concept
+from concepts import SwingPointScanner
 
 
 @concept("draw-on-liquidity", depends_on=["swing-points"])

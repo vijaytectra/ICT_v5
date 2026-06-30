@@ -11,7 +11,7 @@ parameters:
   pool_set: [PDH/PDL, Chicago-prior (09:15–12:00 NY prior day), ONS (05:00–09:15 NY), opening-range (09:30–10:00 NY), Chicago-same-day, session-swings, relative-equal-highs-lows]
   killzones: [london, ny_am, ny_pm]  # 02:00–05:00 NY, 07:00–10:00 NY, 13:30–16:00 NY
   bias: "daily — order flow + draw must align (gate); premium/discount is a logged entry-zone check, not a gate"
-detection: implemented           # Model2022 (src/ict/models/ict/model_2022.py)
+detection: implemented           # Model2022 (models/ict/model_2022.py)
 ---
 
 # The 2022 Model

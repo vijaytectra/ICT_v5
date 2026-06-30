@@ -48,7 +48,7 @@ Mirror of the above using swing lows:
 
 ## Detection Rules
 
-Implemented in `src/ict/concepts/dark_pool.py` → `find_dark_pools(df, direction, swing_lookback)`.
+Implemented in `dark_pool.py` → `find_dark_pools(df, direction, swing_lookback)`.
 
 For each no-liquidity swing (using `classify_swing_liquidity`):
 1. Search bars after the swing for the first candle that clears it (low > H for bullish, high < L for bearish).

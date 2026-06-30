@@ -1,31 +1,21 @@
 """
-ICT Trading Library
-==================
+Infrastructure
+==============
 
-A comprehensive library for Inner Circle Trader (ICT) trading concepts.
+Shared library machinery for the ICT trading project — the cross-cutting code
+that is not a concept or a model:
 
-Main Components:
-- core: Market structure, liquidity, fair value gaps, order blocks
-- models: Higher-level trading models (daily bias, power of three, etc.)
-- session: Session-based concepts (killzones, session liquidity)
-- utils: Utility functions for data loading and validation
+- ``registry``    — the ``@concept`` registry + lineage graph (binds specs to code)
+- ``loader``      — :class:`DataLoader` for the ES/NQ/YM CSVs
+- ``report``      — reusable backtest report engine (``Mark``, ``TradeViz``, ``build_report``)
+- ``time_utils``  — session/time helpers
+
+Concepts live in the top-level ``concepts`` package; full strategies live in the
+top-level ``models`` package. Both compose this infrastructure.
 """
 
-from ict.concepts.market_structure import SwingPointScanner
-from ict.concepts.fair_value_gap import FVG, find_fvgs
-from ict.models.ict.sniper_model import SniperModel, SniperSnapshot
-from ict.models.ict.model_2022 import Model2022, Model2022Snapshot
-from ict.data.loader import DataLoader
+from infrastructure.loader import DataLoader
 
 __version__ = "0.1.0"
 
-__all__ = [
-    'SwingPointScanner',
-    'FVG',
-    'find_fvgs',
-    'SniperModel',
-    'SniperSnapshot',
-    'Model2022',
-    'Model2022Snapshot',
-    'DataLoader',
-]
+__all__ = ["DataLoader"]

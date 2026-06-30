@@ -1,54 +1,35 @@
 # Charts
 
-Visual outputs organized by concept. Each concept has its own subfolder.
-
----
-
-## Folder structure
+Charting scripts and their image outputs are **colocated with the concept they
+visualize**, not here. Each concept/model folder has its own `charts/` subfolder:
 
 ```
-charts/{concept}/{concept}-{instrument}-{date_from_instrument}.png
+concepts/<author>/<category>/<name>/charts/<chart_script>.py
+concepts/<author>/<category>/<name>/charts/<output-subdir>/<name>-<instrument>-<date>.png
+models/<author>/<name>/charts/...
 ```
 
 Examples:
 ```
-charts/dxy-weekly-bias/dxy-weekly-bias-DXY-2024-01-07.png
-charts/hpfs/hpfs-NQ-2024-06-03.png
-charts/pool-validity/pool-validity-NQ-2024-06-03.png
+concepts/ict/pd_arrays/order_block/charts/chart_ob.py                         → charts/ob/ob-DXY-1h-<date>.png
+concepts/ict/daily_bias/dxy_weekly_bias/charts/chart_dxy_mss.py               → dxy-weekly-bias-DXY-<date>.png (beside script)
+concepts/ict/market_structure/market_structure_shift/charts/chart_mss_type2.py → mss-type2-<date>.png (beside script)
+concepts/merchant/price_action/break_away_gap/charts/chart_dxy_bag.py
 ```
 
-- **`{concept}`** — concept slug matching `knowledge/` (e.g. `dxy-weekly-bias`, `hpfs`, `pool-validity`)
-- **`{instrument}`** — ticker being charted (e.g. `DXY`, `NQ`, `ES`)
-- **`{date_from_instrument}`** — the **start date of the data shown** in the chart (not today's date), format `YYYY-MM-DD`
-
----
-
-## Subfolders
-
-| Folder | Concept | Script |
-|---|---|---|
-| `dxy-weekly-bias/` | DXY weekly swing reactions — MSS and CISD at raided pools | `chart_dxy_mss.py`, `chart_dxy_bag.py`, `chart_dxy_dark_pool.py`, `chart_dxy_swing_classification.py` |
-| `hpfs/` | High Probability Failure Swing detection (RB and OB variants) | — |
-| `ob/` | Order Block — body liquidity sweep + validation candle | `chart_ob.py` |
-| `pool-validity/` | Valid liquidity pools and failure string filter | — |
-
----
-
-## Scripts
-
-Charting scripts live **in this folder** (`charts/`), not in `scripts/`. Run them from the repo root:
-
+Run a chart from the repo root, e.g.:
 ```
-python charts/chart_ob.py
-python charts/chart_dxy_mss.py
+python concepts/ict/pd_arrays/order_block/charts/chart_ob.py
 ```
+Each script resolves the repo root itself (walks up to `pyproject.toml`) and
+writes its PNG next to itself.
 
-Each script outputs to its matching subfolder.
+## Naming
 
----
+`<concept>-<instrument>-<date_from_instrument>.png` — where the date is the
+**start date of the data shown**, not today. (`{instrument}` = `DXY`/`NQ`/`ES`/…)
 
-## Conventions
+## Style conventions
 
-Follow `scripts/CHARTING.md` for all style rules (colors, raid lines, dark background, etc.).
-
-Charts saved here are for write-ups and reference. Quick exploratory charts go to `/tmp/` first.
+Follow [`infrastructure/CHARTING.md`](CHARTING.md) for all style rules (colors,
+raid lines, dark background, etc.). Quick exploratory charts go to `/tmp/` first.

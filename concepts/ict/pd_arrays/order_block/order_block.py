@@ -27,7 +27,7 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Literal
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @dataclass
@@ -81,7 +81,7 @@ def _hpfs_levels(df: pd.DataFrame, side: str, ltc_type: str) -> list[tuple[int, 
     side: 'low'  → bullish HPFS lows  (sell-side pools, swept by bullish OB)
           'high' → bearish HPFS highs  (buy-side pools, swept by bearish OB)
     """
-    from ict.concepts.hpfs import find_hpfs
+    from concepts import find_hpfs
     direction = 'bullish' if side == 'low' else 'bearish'
     hpfs_df = find_hpfs(df, direction=direction, ltc_type=ltc_type)
     if hpfs_df.empty:
@@ -104,7 +104,7 @@ def _rel_levels(df: pd.DataFrame, side: str, swing_lookback: int,
     side: 'low'  → REL (Relative Equal Lows)
           'high' → REH (Relative Equal Highs)
     """
-    from ict.concepts.market_structure import SwingPointScanner
+    from concepts import SwingPointScanner
     scanner = SwingPointScanner(df, lookback=swing_lookback)
     scanner.identify_swings()
 

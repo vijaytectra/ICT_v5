@@ -1,5 +1,5 @@
 ---
-name: draw-on-liquidity
+name: draw-on-liquidity-cm
 aliases: [DOL, draw, drone liquidity, drawn liquidity, liquidity draw, weekly draw]
 category: price-action
 related: [pa-flow, imbalances-to-liquidity, rules-of-engagement, cycle-order-flow, session-opens]

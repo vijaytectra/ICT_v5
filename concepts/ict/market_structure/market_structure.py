@@ -11,8 +11,8 @@ import pandas as pd
 import numpy as np
 from typing import List, Literal, Optional
 
-from ict.registry import concept
-from ict.utils.time_utils import localize_like
+from infrastructure.registry import concept
+from infrastructure.time_utils import localize_like
 
 
 @concept("swing-points")
@@ -219,7 +219,7 @@ class SwingPointScanner:  # no depends_on — primitive
 
 # ---------------------------------------------------------------------------
 # Market Structure Shift (MSS / CHoCH)
-# See knowledge/ict/market-structure/market-structure-shift.md
+# See market-structure-shift.md
 # ---------------------------------------------------------------------------
 
 @concept("market-structure-shift", depends_on=["swing-points", "break-away-gap", "dark-pool"])
@@ -390,7 +390,7 @@ def detect_mss(
 
 # ---------------------------------------------------------------------------
 # Change in State of Delivery (CISD)
-# See knowledge/ict/market-structure/change-in-state-of-delivery.md
+# See change-in-state-of-delivery.md
 # ---------------------------------------------------------------------------
 
 @concept("change-in-state-of-delivery", depends_on=["swing-points"])
@@ -486,7 +486,7 @@ def detect_cisd(
 
 # ---------------------------------------------------------------------------
 # Relative Equal Highs / Lows
-# See knowledge/ict/liquidity/relative-equal-highs-lows.md
+# See relative-equal-highs-lows.md
 # ---------------------------------------------------------------------------
 
 @concept("relative-equal-highs-lows", depends_on=["swing-points"])

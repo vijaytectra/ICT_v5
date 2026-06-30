@@ -31,13 +31,13 @@ liquidity scaffolding:
 - **Overnight Session (ONS)** — **05:00–09:15 NY**. The pre-market window from
   globex overnight through to the RTH open. Its high/low are standing intraday
   liquidity pools, often swept in the opening killzone or early RTH. Implemented
-  as `ons_range()` in `src/ict/concepts/sessions.py`.
+  as `ons_range()` in `sessions.py`.
 - **Chicago Session** — **09:15–12:00 NY**. CME pit session open through midday.
   Its high/low are liquidity pools once the window closes (`formed_at = range_end`).
   Two uses: (1) **same-day** — sweepable in the PM killzone (13:30–16:00 NY);
   (2) **next-day** — carried forward as a standing pool alongside PDH/PDL, available
   from the next session open. Implemented as `chicago_range()` in
-  `src/ict/concepts/sessions.py`.
+  `sessions.py`.
 - **Opening Range (OR)** — the first 30 min after the **09:30 NY cash open** (RTH OR,
   the project default for `opening_range`); its high/low are intraday liquidity pools.
   `start_ny` can anchor the range to another session open (e.g. `08:30` for the NY

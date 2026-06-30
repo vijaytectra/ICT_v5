@@ -41,14 +41,14 @@ class MyModel:
 
 ## Adding a New Strategy
 
-1. Run `/strategy-from-transcript` with the video transcript → review the notes file in `strategies/notes/` (and the relevant concept files under `knowledge/`)
+1. Run `/strategy-from-transcript` with the video transcript → review the notes file in `strategies/notes/` (and the relevant concept specs under `concepts/`)
 2. Decide the layer for each new piece of logic:
-   - **Single primitive** (e.g. a new session range detector) → `src/ict/concepts/<name>.py`, register with `@concept("<slug>")`
-   - **Multi-concept gate** reused across models (e.g. a new bias signal) → `src/ict/models/intermediate/<name>.py`
-   - **Full strategy** → `src/ict/models/<author>/<name>.py`
+   - **Single primitive** (e.g. a new session range detector) → `concepts/<author>/<category>/<name>/<name>.py`, register with `@concept("<slug>")`
+   - **Multi-concept gate** reused across models (e.g. a new bias signal) → `models/intermediate/<name>/<name>.py`
+   - **Full strategy** → `models/<author>/<name>/<name>.py`
 3. Register the entry point with `@concept("<slug>", depends_on=["dep-slug", ...])` — list every concept/intermediate it directly calls
-4. Create (or update) the matching `knowledge/` markdown file; set `detection: implemented`
+4. Create (or update) the matching `<slug>.md` spec in the same folder; set `detection: implemented`
 5. Implement `generate_signal(snapshot)` using the checklist from the notes file
-6. Run `.venv/bin/python scripts/lineage.py --update-readme` to regenerate the README diagram
+6. Run `.venv/bin/python infrastructure/lineage.py --update-readme` to regenerate the README diagram
 7. Create `examples/<strategy_name>_example.py` to verify the model runs
 8. Backtest with a runner in `backtests/`; outputs land in `results/`

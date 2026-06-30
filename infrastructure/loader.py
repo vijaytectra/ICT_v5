@@ -116,7 +116,7 @@ class DataLoader:
         if not filepath.exists():
             raise FileNotFoundError(
                 f"DXY data not found at {filepath}. "
-                "Run scripts/fetch_dxy.py to download."
+                "Run infrastructure/fetch_dxy.py to download."
             )
         df = pd.read_csv(filepath, index_col='timestamp', parse_dates=True)
         df = df.sort_index()

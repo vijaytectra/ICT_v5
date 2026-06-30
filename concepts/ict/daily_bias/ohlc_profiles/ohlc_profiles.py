@@ -6,12 +6,12 @@ The expected internal delivery sequence of a daily candle given the bias:
   Bearish day = O-H-L-C  (manipulation high, then expansion to low)
   Bullish day = O-L-H-C  (manipulation low, then expansion to high)
 
-See knowledge/ict/daily-bias/ohlc-candle-profiles.md
+See ohlc-candle-profiles.md
 """
 
 import pandas as pd
 
-from ict.registry import concept
+from infrastructure.registry import concept
 
 
 @concept("ohlc-candle-profiles")

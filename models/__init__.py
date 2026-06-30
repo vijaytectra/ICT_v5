@@ -5,7 +5,7 @@ Composite trading models, organized by author/source.
 - romeo/    — Romeo's Candle Range Theory (CRT) models
 - merchant/ — The Currency Merchant (Kishane) models
 
-Each model composes primitives from `ict.concepts`. The conceptual spec for every
-model lives in `knowledge/<author>/models/`; model classes should reference the
+Each model composes primitives from the `concepts` package. The conceptual spec for every
+model spec lives in its folder under `models/<author>/<name>/`; model classes should reference the
 concept slug they implement.
 """

@@ -1,7 +1,7 @@
 """
 Smoke tests: the registered detectors actually execute on a small data fixture.
 
-The fixture (tests/fixtures/nq_sample.csv) is a 1000-row slice of real NQ 1m data
+The fixture (infrastructure/tests/fixtures/nq_sample.csv) is a 1000-row slice of real NQ 1m data
 committed to the repo so tests run on a fresh clone without the full dataset.
 """
 import pathlib
@@ -9,8 +9,8 @@ import pathlib
 import pandas as pd
 import pytest
 
-from ict.concepts.fair_value_gap import find_fvgs
-from ict.concepts.market_structure import SwingPointScanner
+from concepts import find_fvgs
+from concepts import SwingPointScanner
 
 FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "nq_sample.csv"
 

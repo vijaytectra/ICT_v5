@@ -9,10 +9,13 @@ Equal highs (high[i] == prior) are NOT disqualified — they count as HPFS
 (relative equal highs = doubled-up liquidity, not consumed).
 
 Usage: python charts/chart_dxy_swing_classification.py
-Output: charts/dxy-weekly-bias/dxy-swing-classification-<start>.png
+Output: dxy-swing-classification-<start>.png (beside this script)
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -22,9 +25,9 @@ import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import yfinance as yf
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict.concepts.market_structure import SwingPointScanner
+from concepts import SwingPointScanner
 
 # ── palette ──────────────────────────────────────────────────────────────────
 BG      = '#0d1117'
@@ -182,7 +185,7 @@ def main():
     ax.legend(facecolor='#161b22', edgecolor='#30363d',
               labelcolor=FG, fontsize=9, loc='upper left')
 
-    out_dir  = os.path.join(os.path.dirname(__file__), 'dxy-weekly-bias')
+    out_dir  = os.path.dirname(__file__)
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir,
                             f'dxy-swing-classification-{pd.Timestamp(start).strftime("%Y-%m-%d")}.png')

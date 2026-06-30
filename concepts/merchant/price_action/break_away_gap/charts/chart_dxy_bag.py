@@ -7,10 +7,13 @@ Shows all bullish and bearish BAGs on the DXY weekly chart:
   - Lines stop at the bar where the zone is fully mitigated
 
 Usage: python charts/chart_dxy_bag.py
-Output: charts/dxy-weekly-bias/dxy-bag-<start>.png
+Output: dxy-bag-<start>.png (beside this script)
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import matplotlib
@@ -20,11 +23,11 @@ import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import yfinance as yf
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict.concepts.break_away_gap import find_break_away_gaps, BreakAwayGap
-from ict.concepts.market_structure import SwingPointScanner
-from ict.concepts.pool_validity import classify_swing_liquidity
+from concepts import find_break_away_gaps, BreakAwayGap
+from concepts import SwingPointScanner
+from concepts import classify_swing_liquidity
 
 # ── palette ──────────────────────────────────────────────────────────────────
 BG      = '#0d1117'
@@ -192,7 +195,7 @@ def main():
     ax.legend(facecolor='#161b22', edgecolor='#30363d',
               labelcolor=FG, fontsize=9, loc='upper left')
 
-    out_dir  = os.path.join(os.path.dirname(__file__), 'dxy-weekly-bias')
+    out_dir  = os.path.dirname(__file__)
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f'dxy-bag-{pd.Timestamp(start).strftime("%Y-%m-%d")}.png')
     plt.tight_layout()

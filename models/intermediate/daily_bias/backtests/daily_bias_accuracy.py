@@ -20,17 +20,20 @@ Usage:
 
 import argparse
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT / 'src'))
 
-from ict import DataLoader
-from ict.models.intermediate.daily_bias import daily_bias_components
+from infrastructure import DataLoader
+from models.intermediate.daily_bias import daily_bias_components
 
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
+DATA_DIR = str(_ROOT / 'Data')
 
 
 def main():
@@ -161,7 +164,7 @@ def main():
     print("=" * 55)
 
     # ── Save ─────────────────────────────────────────────────────────────────
-    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results'))
+    out_dir = str(_HERE / 'results')
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, 'daily_bias_accuracy.csv')
     df.to_csv(out_path, index=False)

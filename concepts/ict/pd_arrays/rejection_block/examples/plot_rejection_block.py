@@ -6,6 +6,9 @@ a prior swing high/low liquidity pool and violently rejected.
 """
 
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 import sys
 import pandas as pd
 import numpy as np
@@ -13,8 +16,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from ict import DataLoader
+sys.path.insert(0, str(_ROOT))
+from infrastructure import DataLoader
 
 # ── params ────────────────────────────────────────────────────────────────────
 WICK_DOMINANCE = 1.5      # wick must be >= 1.5x body
@@ -22,7 +25,7 @@ SWING_LOOKBACK = 20       # bars to look back for prior swing extreme
 CONTEXT_BARS   = 80       # bars of context to show around the RB candle
 
 # ── load data ─────────────────────────────────────────────────────────────────
-data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
+data_dir = str(_ROOT / 'Data')
 loader = DataLoader(timeframe='5T', weeks=26, data_dir=data_dir)
 df = loader.read_NQ()
 df = df.dropna(subset=['open', 'high', 'low', 'close'])

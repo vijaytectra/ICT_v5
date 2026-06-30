@@ -24,17 +24,17 @@ are the primary reference level for this study.
 ### Step 1 — Weekly DXY swing extraction
 - Resample DXY daily CSV → weekly OHLC
 - Run `SwingPointScanner` on weekly bars to get swing highs and lows
-- **Files**: `src/ict/data/loader.py` (already has `read_DXY()`), `src/ict/concepts/market_structure.py`
+- **Files**: `infrastructure/loader.py` (already has `read_DXY()`), `market_structure.py`
 
 ### Step 2 — Valid pools via pool_validity
 - Apply `filter_failure_strings` on weekly swing highs (buy-side) and lows (sell-side)
 - Filter by weekly open: bullish bias → only pools above weekly open; bearish → below
-- **Files**: `src/ict/concepts/pool_validity.py` (complete)
+- **Files**: `pool_validity.py` (complete)
 
 ### Step 3 — Most recently raided pool
 - Use `find_raid_bar` to identify which valid pool was most recently taken on DXY weekly
 - That raided pool is the level where we analyze the reaction
-- **Files**: `src/ict/concepts/pool_validity.py` (complete)
+- **Files**: `pool_validity.py` (complete)
 
 ### Step 4 — Reaction classifier (primary build target)
 Given the raided pool timestamp + DXY bars after the raid, classify the reaction:
@@ -55,8 +55,8 @@ Given the raided pool timestamp + DXY bars after the raid, classify the reaction
 ### Step 5 — `dxy_weekly_bias()` output
 - Raided buy-side (high) pool + bearish reaction (MSS/CISD down) → DXY bullish → **indices bearish**
 - Raided sell-side (low) pool + bullish reaction (MSS/CISD up) → DXY bearish → **indices bullish**
-- New file: `src/ict/concepts/dxy_bias.py`
-- New knowledge: `knowledge/currency-merchant/price-action/dxy-bias.md`
+- New file: `dxy_bias.py`
+- New knowledge: `concepts/ict/daily_bias/dxy_weekly_bias/` (code: `dxy_bias.py`; spec TBD)
 
 ### Step 6 — Backtest against NQ
 - For each week in dataset: compute `dxy_weekly_bias()` → compare against NQ weekly direction

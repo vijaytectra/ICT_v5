@@ -11,13 +11,17 @@ Demonstrates how to use the SwingPointScanner to identify:
 
 import sys
 import os
+import pathlib as _pl
+_HERE = _pl.Path(__file__).resolve().parent
+_ROOT = next(p for p in _pl.Path(__file__).resolve().parents if (p / "pyproject.toml").exists())
 
-from ict import SwingPointScanner, DataLoader
+from concepts import SwingPointScanner
+from infrastructure import DataLoader
 
 
 def main():
     # Get data directory path (relative to script location)
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../Data'))
+    data_dir = str(_ROOT / 'Data')
     
     # Load data for last 4 weeks at 15-minute timeframe
     loader = DataLoader(timeframe='15T', weeks=4, data_dir=data_dir)
