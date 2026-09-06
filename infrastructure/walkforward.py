@@ -260,13 +260,18 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
 def collect_test_trades(log: pd.DataFrame, window: Window) -> pd.DataFrame:
     """The chosen configuration's trades inside the test period only.
 
-    The assertion is the whole safety net of this module: if a training-period
-    trade ever reaches the stitched result, every downstream number is inflated
-    and nothing warns you. Cheap to check, catastrophic to miss.
+    The guard below is the whole safety net of this module: if a
+    training-period trade ever reaches the stitched result, every downstream
+    number is inflated and nothing warns you. Cheap to check, catastrophic
+    to miss.
     """
     out = slice_dates(normalize_log(log), window.test_start, window.test_end)
-    if len(out) and not (out[DATE_COL] > window.train_end).all():
-        raise AssertionError(
-            f"window {window.index}: test slice contains training dates"
+    if not (out[DATE_COL] > window.train_end).all():
+        leaked = out.loc[out[DATE_COL] <= window.train_end, DATE_COL]
+        raise ValueError(
+            f"window {window.index}: test slice contains {len(leaked)} "
+            f"training-period trade(s), dates {leaked.min().date()}.."
+            f"{leaked.max().date()} (train_end={window.train_end.date()})"
         )
+    # own the frame - run_walkforward assigns a window column onto this
     return out.copy()

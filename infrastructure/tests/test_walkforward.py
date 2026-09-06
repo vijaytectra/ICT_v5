@@ -281,5 +281,5 @@ def test_collect_raises_if_window_overlaps_training():
         test_end=pd.Timestamp('2025-03-31 23:59:59'),
     )
     log = _log(pd.date_range('2024-10-15', periods=5, freq='3D'), [0.1] * 5)
-    with pytest.raises(AssertionError, match='window 7'):
+    with pytest.raises(ValueError, match='window 7'):
         collect_test_trades(log, overlapping_w)
