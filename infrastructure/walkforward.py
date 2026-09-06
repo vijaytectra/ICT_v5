@@ -255,3 +255,18 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
         f"window {window.index}: no configuration reached {fallback_min_trades} "
         f"training trades ({detail})"
     )
+
+
+def collect_test_trades(log: pd.DataFrame, window: Window) -> pd.DataFrame:
+    """The chosen configuration's trades inside the test period only.
+
+    The assertion is the whole safety net of this module: if a training-period
+    trade ever reaches the stitched result, every downstream number is inflated
+    and nothing warns you. Cheap to check, catastrophic to miss.
+    """
+    out = slice_dates(normalize_log(log), window.test_start, window.test_end)
+    if len(out) and not (out[DATE_COL] > window.train_end).all():
+        raise AssertionError(
+            f"window {window.index}: test slice contains training dates"
+        )
+    return out.copy()

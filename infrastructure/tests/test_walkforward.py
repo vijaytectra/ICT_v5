@@ -246,3 +246,40 @@ def test_select_rejects_fallback_min_trades_below_one():
     with pytest.raises(ValueError, match='fallback_min_trades'):
         select_config({'only': log}, TRAIN_W,
                       min_trades=40, fallback_min_trades=0)
+
+
+from infrastructure.walkforward import collect_test_trades
+
+
+def test_collect_returns_only_test_period_trades():
+    log = _log(pd.date_range('2024-06-01', periods=100, freq='3D'), [0.1] * 100)
+    out = collect_test_trades(log, TRAIN_W)
+    assert len(out) > 0
+    assert (out['date'] > TRAIN_W.train_end).all()
+    assert (out['date'] >= TRAIN_W.test_start).all()
+    assert (out['date'] <= TRAIN_W.test_end).all()
+
+
+def test_collect_returns_empty_frame_when_config_did_not_trade():
+    log = _log(pd.date_range('2024-02-01', periods=10, freq='3D'), [0.1] * 10)
+    out = collect_test_trades(log, TRAIN_W)
+    assert len(out) == 0
+    assert list(out.columns) == list(normalize_log(log).columns)
+
+
+def test_collect_raises_if_window_overlaps_training():
+    """The two tests above never exercise the leak assertion - by construction
+    test_start > train_end for every Window make_windows can produce. This
+    constructs a deliberately malformed Window whose test period overlaps
+    training, and confirms the guard actually fires instead of trusting it
+    silently by inspection."""
+    overlapping_w = Window(
+        index=7,
+        train_start=pd.Timestamp('2024-01-01'),
+        train_end=pd.Timestamp('2024-12-31 23:59:59'),
+        test_start=pd.Timestamp('2024-10-01'),
+        test_end=pd.Timestamp('2025-03-31 23:59:59'),
+    )
+    log = _log(pd.date_range('2024-10-15', periods=5, freq='3D'), [0.1] * 5)
+    with pytest.raises(AssertionError, match='window 7'):
+        collect_test_trades(log, overlapping_w)
