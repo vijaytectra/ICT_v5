@@ -153,3 +153,66 @@ def dedupe_logs(logs: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFrame],
             seen[fp] = name
             kept[name] = logs[name]
     return kept, dropped
+
+
+@dataclass(frozen=True)
+class Selection:
+    """What one training window chose, and on what evidence."""
+    window: Window
+    config: str
+    train_trades: int
+    train_expectancy: float
+    n_eligible: int
+    floor_used: int
+    floor_relaxed: bool
+
+
+def slice_dates(df: pd.DataFrame, start: pd.Timestamp,
+                end: pd.Timestamp) -> pd.DataFrame:
+    """Rows whose date falls in [start, end]. Assumes a normalised log."""
+    mask = (df[DATE_COL] >= start) & (df[DATE_COL] <= end)
+    return df.loc[mask]
+
+
+def select_config(logs: dict[str, pd.DataFrame], window: Window,
+                  min_trades: int = 40,
+                  fallback_min_trades: int = 25) -> Selection:
+    """Pick the best configuration using ONLY the window's training period.
+
+    Ranked by expectancy (mean R per trade) among configurations clearing the
+    trade floor. The floor exists because expectancy on a handful of trades is
+    noise, and an unfloored search reliably selects that noise.
+
+    If nothing clears `min_trades` the floor drops to `fallback_min_trades` and
+    the Selection records that it happened. If nothing clears that either, this
+    raises rather than quietly returning a fluke.
+    """
+    stats: dict[str, tuple[int, float]] = {}
+    for name, log in logs.items():
+        train = slice_dates(normalize_log(log), window.train_start, window.train_end)
+        # Drop unresolved trades ONCE, before both the count and the mean, so the
+        # eligibility floor and the ranking share a denominator by construction.
+        # `normalize_log` guarantees no silently-introduced NaN, but not "no NaN":
+        # a genuinely missing R value is legitimate. Without this line `len()`
+        # would count such a row toward the floor while `.mean()` skips it, which
+        # silently tilts which configuration wins.
+        train = train.dropna(subset=[R_COL])
+        if len(train):
+            stats[name] = (len(train), float(train[R_COL].mean()))
+
+    for floor in (min_trades, fallback_min_trades):
+        eligible = {n: v for n, v in stats.items() if v[0] >= floor}
+        if eligible:
+            # expectancy desc, then trade count desc, then name asc
+            best = min(eligible.items(), key=lambda kv: (-kv[1][1], -kv[1][0], kv[0]))
+            name, (n, exp) = best
+            return Selection(
+                window=window, config=name, train_trades=n,
+                train_expectancy=exp, n_eligible=len(eligible),
+                floor_used=floor, floor_relaxed=(floor != min_trades),
+            )
+
+    raise ValueError(
+        f"window {window.index}: no configuration reached {fallback_min_trades} "
+        f"training trades (best was {max((v[0] for v in stats.values()), default=0)})"
+    )

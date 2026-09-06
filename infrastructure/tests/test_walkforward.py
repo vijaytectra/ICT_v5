@@ -3,7 +3,8 @@ import pandas as pd
 import pytest
 
 from infrastructure.walkforward import (Window, dedupe_logs, log_fingerprint,
-                                        make_windows, normalize_log)
+                                        make_windows, normalize_log,
+                                        select_config, slice_dates)
 
 
 def _log(dates, rs, instrument='EURUSD'):
@@ -130,3 +131,79 @@ def test_fingerprint_same_for_instrument_case_difference():
     a = _log(['2024-01-01'], [1.0], instrument='eurusd')
     b = _log(['2024-01-01'], [1.0], instrument='EURUSD')
     assert log_fingerprint(a) == log_fingerprint(b)
+
+
+TRAIN_W = Window(
+    index=0,
+    train_start=pd.Timestamp('2024-01-01'),
+    train_end=pd.Timestamp('2024-12-31 23:59:59'),
+    test_start=pd.Timestamp('2025-01-01'),
+    test_end=pd.Timestamp('2025-03-31 23:59:59'),
+)
+
+
+def test_slice_dates_is_inclusive_on_both_bounds():
+    log = _log(['2024-01-01', '2024-06-01', '2025-02-01'], [1.0, 1.0, 1.0])
+    out = slice_dates(normalize_log(log), TRAIN_W.train_start, TRAIN_W.train_end)
+    assert len(out) == 2
+
+
+def test_select_applies_the_trade_floor():
+    lucky = _log(pd.date_range('2024-02-01', periods=6, freq='7D'), [3.0] * 6)
+    real = _log(pd.date_range('2024-01-02', periods=50, freq='5D'),
+                [0.4, -1.0] * 25)
+    sel = select_config({'lucky': lucky, 'real': real}, TRAIN_W, min_trades=40)
+    assert sel.config == 'real'
+    assert sel.n_eligible == 1
+    assert sel.floor_relaxed is False
+
+
+def test_select_relaxes_the_floor_and_flags_it():
+    only = _log(pd.date_range('2024-01-02', periods=30, freq='9D'), [0.5] * 30)
+    sel = select_config({'only': only}, TRAIN_W,
+                        min_trades=40, fallback_min_trades=25)
+    assert sel.config == 'only'
+    assert sel.floor_relaxed is True
+    assert sel.floor_used == 25
+
+
+def test_select_raises_when_nothing_qualifies():
+    tiny = _log(pd.date_range('2024-01-02', periods=5, freq='10D'), [1.0] * 5)
+    with pytest.raises(ValueError, match='no configuration'):
+        select_config({'tiny': tiny}, TRAIN_W,
+                      min_trades=40, fallback_min_trades=25)
+
+
+def test_select_breaks_ties_by_trade_count_then_name():
+    many = _log(pd.date_range('2024-01-02', periods=50, freq='5D'), [0.5] * 50)
+    few = _log(pd.date_range('2024-01-02', periods=40, freq='6D'), [0.5] * 40)
+    sel = select_config({'zz_many': many, 'aa_few': few}, TRAIN_W, min_trades=40)
+    assert sel.config == 'zz_many'
+
+    twin_a = _log(pd.date_range('2024-01-02', periods=50, freq='5D'), [0.5] * 50)
+    twin_b = _log(pd.date_range('2024-01-03', periods=50, freq='5D'), [0.5] * 50)
+    sel2 = select_config({'bbb': twin_b, 'aaa': twin_a}, TRAIN_W, min_trades=40)
+    assert sel2.config == 'aaa'
+
+
+def test_select_uses_one_denominator_for_floor_and_ranking():
+    """Unresolved (NaN) R values must not count toward the eligibility floor
+    while being skipped by the mean - that mismatch silently tilts selection."""
+    rs = [0.5] * 39 + [float('nan')] * 5
+    borderline = _log(pd.date_range('2024-01-02', periods=44, freq='6D'), rs)
+    with pytest.raises(ValueError, match='no configuration'):
+        select_config({'borderline': borderline}, TRAIN_W,
+                      min_trades=40, fallback_min_trades=40)
+
+
+def test_select_ignores_test_period_trades():
+    """A config that is terrible in training and brilliant in the test period
+    must still lose selection - that is the whole point."""
+    bad_then_good = _log(
+        list(pd.date_range('2024-01-02', periods=45, freq='6D'))
+        + list(pd.date_range('2025-01-05', periods=10, freq='2D')),
+        [-0.5] * 45 + [9.0] * 10)
+    steady = _log(pd.date_range('2024-01-02', periods=45, freq='6D'), [0.2] * 45)
+    sel = select_config({'bad_then_good': bad_then_good, 'steady': steady},
+                        TRAIN_W, min_trades=40)
+    assert sel.config == 'steady'
