@@ -1327,6 +1327,26 @@ git commit -m "Add walk-forward validation analysis"
 
 ---
 
+## Amendments made during execution
+
+The plan's reference code carried defects that code review caught during
+implementation. They are recorded here rather than silently edited away,
+because each is the same failure class this framework exists to rule out —
+**silently produces a wrong number, never raises**.
+
+| # | Task | Defect in the plan's own code | Fix |
+|---|---|---|---|
+| 1 | 2 | `pd.to_numeric(errors='coerce')` turned malformed R values into `NaN` silently, while the `date` column beside it raised. `.mean()` skips NaN but `len()` counts it, so the eligibility floor and the ranking would have used **different denominators** | `normalize_log` raises on values that coercion newly turned to NaN, naming the count and row indices; genuinely-missing NaN still passes |
+| 2 | 2 | `normalize_log` canonicalised only 2 of the 5 columns `log_fingerprint` hashes, so the same trade with `entry_time` as a Timestamp vs an ISO string hashed differently — **under-counting duplicates**, which inflates the distinct-config count the bias estimate rests on | canonicalises `entry_time`, `instrument`, `direction` too |
+| 3 | 3 | `dropna` removed NaN rows but not `±inf`. `-inf` negates to the smallest sort key, so **one infinite R makes a mediocre config win outright**; a `+inf`/`-inf` mix returns `train_expectancy=NaN` with only an unseen numpy warning | `normalize_log` rejects non-finite R (an infinite R is never a legitimate data state, unlike a missing one). Verified not reachable in today's data — 0 of 113 logs — but the guard lives in a different file and must not be depended on |
+| 4 | 3 | `fallback_min_trades > min_trades` made the second loop pass a silent no-op while the error message claimed the lenient floor had been tried | precondition `ValueError`, mirroring `make_windows` |
+| 5 | 3 | "nothing qualified" error named a trade count but not which configuration | names the best-populated config and its count |
+| 6 | 3 | ranking key `min(..., key=lambda kv: (-kv[1][1], -kv[1][0], kv[0]))` used unlabelled tuple indices and double negation — correct, but one careless `max()` refactor from silently inverting | `ConfigStat` NamedTuple; key reads `(-kv[1].expectancy, -kv[1].n_trades, kv[0])` |
+
+Task 3's `select_config` therefore also validates its preconditions and uses
+`ConfigStat`; the Step 3 code block above shows the `dropna` fix but predates
+fixes 3–6. The committed implementation is authoritative.
+
 ## Self-Review Notes
 
 **Spec coverage check:**
