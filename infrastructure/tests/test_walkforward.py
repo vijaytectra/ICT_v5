@@ -373,6 +373,12 @@ def test_walkforward_returns_well_formed_empty_frame():
     Expanding training then sees the same fixed pool of ~121 trades in every
     window - comfortably above the floor, so selection succeeds every time -
     while no window's test slice ever contains a trade.
+
+    Critically, the empty frame must carry the SAME columns a populated
+    result would (every column `normalize_log` produces for the input logs,
+    plus `window`/`config`) - not a hardcoded stub. The expected set is
+    derived from `normalize_log` itself rather than spelled out by hand, so
+    this test cannot silently drift if the trade-log schema changes.
     """
     train_only_dates = pd.date_range('2024-04-01', '2025-03-30', freq='3D')
     logs = {'only': _log(train_only_dates, [0.5] * len(train_only_dates))}
@@ -382,4 +388,26 @@ def test_walkforward_returns_well_formed_empty_frame():
 
     assert len(selections) == 6
     assert len(stitched) == 0
-    assert list(stitched.columns) == [DATE_COL, R_COL, 'window', 'config']
+    expected_cols = list(normalize_log(logs['only']).columns) + ['window', 'config']
+    assert list(stitched.columns) == expected_cols
+
+
+def test_walkforward_empty_stitched_frame_does_not_break_compute_stats():
+    """The actual downstream contract the schema-consistency fix protects.
+
+    Task 9's runner passes `stitched` straight into
+    `infrastructure.stats.compute_stats`. An all-windows-empty walk-forward
+    run must still produce a clean zeroed report, not a KeyError on a column
+    (`exit_reason`, `holding_minutes`, ...) the empty frame lacked.
+    """
+    from infrastructure.stats import compute_stats
+
+    train_only_dates = pd.date_range('2024-04-01', '2025-03-30', freq='3D')
+    logs = {'only': _log(train_only_dates, [0.5] * len(train_only_dates))}
+
+    stitched, selections = run_walkforward(logs, '2024-04-05', '2026-09-04',
+                                           min_trades=40)
+
+    assert len(stitched) == 0
+    stats = compute_stats(stitched)
+    assert stats['total_trades'] == 0

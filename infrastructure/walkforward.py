@@ -277,6 +277,29 @@ def collect_test_trades(log: pd.DataFrame, window: Window) -> pd.DataFrame:
     return out.copy()
 
 
+def _empty_stitched_columns(logs: dict[str, pd.DataFrame]) -> list[str]:
+    """Column order an empty stitched frame should carry.
+
+    Downstream consumers (e.g. `infrastructure.stats.compute_stats`) expect
+    the same schema whether or not any window actually produced a trade -
+    a hardcoded 4-column stub would raise `KeyError` on columns like
+    `exit_reason` the moment a non-empty run would have had them. Union the
+    normalized columns of every log, first-seen order, then append
+    `window`/`config` if not already present. `logs` empty (no configurations
+    at all) is the one case with no schema to borrow, so fall back to the
+    engine's own two columns.
+    """
+    columns: list[str] = []
+    for log in logs.values():
+        for col in normalize_log(log).columns:
+            if col not in columns:
+                columns.append(col)
+    for extra in ('window', 'config'):
+        if extra not in columns:
+            columns.append(extra)
+    return columns or [DATE_COL, R_COL, 'window', 'config']
+
+
 def run_walkforward(logs: dict[str, pd.DataFrame], first_date, last_date,
                     min_train_quarters: int = 4, test_quarters: int = 1,
                     min_trades: int = 40,
@@ -297,13 +320,14 @@ def run_walkforward(logs: dict[str, pd.DataFrame], first_date, last_date,
         sel = select_config(logs, window, min_trades=min_trades,
                             fallback_min_trades=fallback_min_trades)
         selections.append(sel)
+        # collect_test_trades already returns an owned copy (see its own
+        # docstring) - it is safe to assign onto directly, no extra copy.
         part = collect_test_trades(logs[sel.config], window)
         if len(part):
-            part = part.copy()
             part['window'] = window.index
             part['config'] = sel.config
             frames.append(part)
 
     stitched = (pd.concat(frames, ignore_index=True) if frames
-                else pd.DataFrame(columns=[DATE_COL, R_COL, 'window', 'config']))
+                else pd.DataFrame(columns=_empty_stitched_columns(logs)))
     return stitched, selections
