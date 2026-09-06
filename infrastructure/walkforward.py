@@ -9,6 +9,7 @@ no file I/O, no global state - so it can be tested on synthetic logs.
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 import pandas as pd
@@ -64,3 +65,51 @@ def make_windows(first_date, last_date, min_train_quarters: int = 4,
             test_end=test_qs[-1].end_time,
         ))
     return windows
+
+
+def normalize_log(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy with `date` as a naive Timestamp column, sorted ascending.
+
+    Logs are written by several runners; this is the one place that decides what
+    a trade log looks like to the engine.
+    """
+    missing = [c for c in (DATE_COL, R_COL) if c not in df.columns]
+    if missing:
+        raise ValueError(f"trade log missing required columns: {missing}")
+    out = df.copy()
+    dates = pd.to_datetime(out[DATE_COL])
+    if getattr(dates.dt, 'tz', None) is not None:
+        dates = dates.dt.tz_localize(None)
+    out[DATE_COL] = dates
+    out[R_COL] = pd.to_numeric(out[R_COL], errors='coerce')
+    return out.sort_values(DATE_COL).reset_index(drop=True)
+
+
+def log_fingerprint(df: pd.DataFrame) -> str:
+    """Stable hash of a log's trade identity, for collapsing duplicates."""
+    norm = normalize_log(df)
+    cols = [c for c in (DATE_COL, 'instrument', 'direction', 'entry_time', R_COL)
+            if c in norm.columns]
+    payload = norm[cols].to_csv(index=False).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def dedupe_logs(logs: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFrame],
+                                                        dict[str, str]]:
+    """Collapse configurations whose trade logs are identical.
+
+    Returns (kept, dropped) where `dropped` maps each removed name to the name
+    it duplicates. Names are processed in sorted order so the survivor is
+    deterministic.
+    """
+    kept: dict[str, pd.DataFrame] = {}
+    seen: dict[str, str] = {}
+    dropped: dict[str, str] = {}
+    for name in sorted(logs):
+        fp = log_fingerprint(logs[name])
+        if fp in seen:
+            dropped[name] = seen[fp]
+        else:
+            seen[fp] = name
+            kept[name] = logs[name]
+    return kept, dropped

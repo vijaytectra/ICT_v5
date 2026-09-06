@@ -2,7 +2,19 @@
 import pandas as pd
 import pytest
 
-from infrastructure.walkforward import Window, make_windows
+from infrastructure.walkforward import (Window, dedupe_logs, log_fingerprint,
+                                        make_windows, normalize_log)
+
+
+def _log(dates, rs, instrument='EURUSD'):
+    """Minimal trade log with the columns the engine and compute_stats need."""
+    return pd.DataFrame({
+        'date': [pd.Timestamp(d).date().isoformat() for d in dates],
+        'pnl_r': list(rs),
+        'exit_reason': ['TP' if r > 0 else 'SL' for r in rs],
+        'instrument': [instrument] * len(rs),
+        'holding_minutes': [60.0] * len(rs),
+    })
 
 
 def test_make_windows_expanding_quarterly():
@@ -64,3 +76,29 @@ def test_make_windows_rejects_non_positive_test_quarters():
 def test_make_windows_rejects_non_positive_min_train_quarters():
     with pytest.raises(ValueError, match='min_train_quarters'):
         make_windows('2024-04-05', '2026-09-04', min_train_quarters=0)
+
+
+def test_normalize_log_parses_dates_and_sorts():
+    raw = _log(['2024-03-01', '2024-01-01', '2024-02-01'], [1.0, -1.0, 2.0])
+    out = normalize_log(raw)
+    assert list(out['date']) == [pd.Timestamp('2024-01-01'),
+                                 pd.Timestamp('2024-02-01'),
+                                 pd.Timestamp('2024-03-01')]
+    assert out['date'].dt.tz is None
+
+
+def test_identical_logs_share_a_fingerprint():
+    a = _log(['2024-01-01', '2024-01-05'], [1.0, -1.0])
+    b = _log(['2024-01-01', '2024-01-05'], [1.0, -1.0])
+    c = _log(['2024-01-01', '2024-01-05'], [1.0, -0.5])
+    assert log_fingerprint(a) == log_fingerprint(b)
+    assert log_fingerprint(a) != log_fingerprint(c)
+
+
+def test_dedupe_keeps_one_and_reports_the_rest():
+    a = _log(['2024-01-01'], [1.0])
+    dup = _log(['2024-01-01'], [1.0])
+    other = _log(['2024-01-01'], [-1.0])
+    kept, dropped = dedupe_logs({'cfg_a': a, 'cfg_b': dup, 'cfg_c': other})
+    assert set(kept) == {'cfg_a', 'cfg_c'}
+    assert dropped == {'cfg_b': 'cfg_a'}
