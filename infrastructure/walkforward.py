@@ -68,7 +68,17 @@ def make_windows(first_date, last_date, min_train_quarters: int = 4,
 
 
 def normalize_log(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with `date` as a naive Timestamp column, sorted ascending.
+    """Return a copy with canonical types for every column `log_fingerprint` uses.
+
+    - `date` and `entry_time` (when present) become naive Timestamps.
+    - `instrument` and `direction` (when present) are upper-cased and stripped,
+      so 'eurusd' and 'EURUSD' canonicalise to the same value.
+    - `pnl_r` becomes numeric. A value that fails to parse and was not already
+      NaN in the input raises ValueError naming the count and offending row
+      indices - it is coerced, never silently dropped. A value that was
+      already NaN in the input (a genuinely missing R) passes through as NaN
+      without raising, since that's a data property, not a parse failure.
+    - Rows are sorted ascending by `date`.
 
     Logs are written by several runners; this is the one place that decides what
     a trade log looks like to the engine.
@@ -77,16 +87,46 @@ def normalize_log(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"trade log missing required columns: {missing}")
     out = df.copy()
+
     dates = pd.to_datetime(out[DATE_COL])
     if getattr(dates.dt, 'tz', None) is not None:
         dates = dates.dt.tz_localize(None)
     out[DATE_COL] = dates
-    out[R_COL] = pd.to_numeric(out[R_COL], errors='coerce')
+
+    if 'entry_time' in out.columns:
+        entry_times = pd.to_datetime(out['entry_time'])
+        if getattr(entry_times.dt, 'tz', None) is not None:
+            entry_times = entry_times.dt.tz_localize(None)
+        out['entry_time'] = entry_times
+
+    for col in ('instrument', 'direction'):
+        if col in out.columns:
+            out[col] = out[col].astype(str).str.strip().str.upper()
+
+    raw_r = out[R_COL]
+    coerced_r = pd.to_numeric(raw_r, errors='coerce')
+    newly_nan = coerced_r.isna() & ~raw_r.isna()
+    if newly_nan.any():
+        bad_idx = list(out.index[newly_nan])
+        shown = bad_idx[:5]
+        suffix = ', ...' if len(bad_idx) > 5 else ''
+        raise ValueError(
+            f"{R_COL} has {len(bad_idx)} unparseable value(s) at row "
+            f"index {shown}{suffix}")
+    out[R_COL] = coerced_r
+
     return out.sort_values(DATE_COL).reset_index(drop=True)
 
 
 def log_fingerprint(df: pd.DataFrame) -> str:
-    """Stable hash of a log's trade identity, for collapsing duplicates."""
+    """Stable hash of a log's trade identity, for collapsing duplicates.
+
+    Valid only within a single process/run: the hash is taken over pandas'
+    `to_csv()` serialisation of the normalized frame, and pandas gives no
+    cross-version guarantee for float/timestamp text formatting. Never persist
+    a fingerprint to disk or compare fingerprints computed under different
+    pandas versions.
+    """
     norm = normalize_log(df)
     cols = [c for c in (DATE_COL, 'instrument', 'direction', 'entry_time', R_COL)
             if c in norm.columns]

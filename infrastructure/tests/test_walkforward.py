@@ -102,3 +102,31 @@ def test_dedupe_keeps_one_and_reports_the_rest():
     kept, dropped = dedupe_logs({'cfg_a': a, 'cfg_b': dup, 'cfg_c': other})
     assert set(kept) == {'cfg_a', 'cfg_c'}
     assert dropped == {'cfg_b': 'cfg_a'}
+
+
+def test_normalize_log_raises_on_malformed_pnl_r():
+    raw = _log(['2024-01-01', '2024-01-02'], [1.0, -1.0])
+    raw['pnl_r'] = raw['pnl_r'].astype(object)
+    raw.loc[1, 'pnl_r'] = 'oops'
+    with pytest.raises(ValueError, match='pnl_r'):
+        normalize_log(raw)
+
+
+def test_normalize_log_allows_preexisting_nan_pnl_r():
+    raw = _log(['2024-01-01', '2024-01-02'], [1.0, float('nan')])
+    out = normalize_log(raw)
+    assert out['pnl_r'].isna().sum() == 1
+
+
+def test_fingerprint_same_for_entry_time_timestamp_vs_iso_string():
+    a = _log(['2024-01-01'], [1.0])
+    a['entry_time'] = [pd.Timestamp('2024-01-01 09:30:00')]
+    b = _log(['2024-01-01'], [1.0])
+    b['entry_time'] = ['2024-01-01T09:30:00']
+    assert log_fingerprint(a) == log_fingerprint(b)
+
+
+def test_fingerprint_same_for_instrument_case_difference():
+    a = _log(['2024-01-01'], [1.0], instrument='eurusd')
+    b = _log(['2024-01-01'], [1.0], instrument='EURUSD')
+    assert log_fingerprint(a) == log_fingerprint(b)
