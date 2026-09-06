@@ -351,6 +351,16 @@ def test_select_breaks_ties_by_trade_count_then_name():
     assert sel2.config == 'aaa'
 
 
+def test_select_uses_one_denominator_for_floor_and_ranking():
+    """Unresolved (NaN) R values must not count toward the eligibility floor
+    while being skipped by the mean - that mismatch silently tilts selection."""
+    rs = [0.5] * 39 + [float('nan')] * 5
+    borderline = _log(pd.date_range('2024-01-02', periods=44, freq='6D'), rs)
+    with pytest.raises(ValueError, match='no configuration'):
+        select_config({'borderline': borderline}, TRAIN_W,
+                      min_trades=40, fallback_min_trades=40)
+
+
 def test_select_ignores_test_period_trades():
     """A config that is terrible in training and brilliant in the test period
     must still lose selection - that is the whole point."""
@@ -409,6 +419,13 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
     stats: dict[str, tuple[int, float]] = {}
     for name, log in logs.items():
         train = slice_dates(normalize_log(log), window.train_start, window.train_end)
+        # Drop unresolved trades ONCE, before both the count and the mean, so the
+        # eligibility floor and the ranking share a denominator by construction.
+        # `normalize_log` guarantees no silently-introduced NaN, but not "no NaN":
+        # a genuinely missing R value is legitimate. Without this line `len()`
+        # would count such a row toward the floor while `.mean()` skips it, which
+        # silently tilts which configuration wins.
+        train = train.dropna(subset=[R_COL])
         if len(train):
             stats[name] = (len(train), float(train[R_COL].mean()))
 
