@@ -207,3 +207,35 @@ def test_select_ignores_test_period_trades():
     sel = select_config({'bad_then_good': bad_then_good, 'steady': steady},
                         TRAIN_W, min_trades=40)
     assert sel.config == 'steady'
+
+
+def test_normalize_log_raises_on_positive_infinite_pnl_r():
+    raw = _log(['2024-01-01', '2024-01-02'], [1.0, float('inf')])
+    with pytest.raises(ValueError, match='pnl_r'):
+        normalize_log(raw)
+
+
+def test_normalize_log_raises_on_negative_infinite_pnl_r():
+    raw = _log(['2024-01-01', '2024-01-02'], [1.0, float('-inf')])
+    with pytest.raises(ValueError, match='pnl_r'):
+        normalize_log(raw)
+
+
+def test_select_rejects_fallback_min_trades_above_min_trades():
+    log = _log(pd.date_range('2024-01-02', periods=50, freq='5D'), [0.5] * 50)
+    with pytest.raises(ValueError, match='fallback_min_trades'):
+        select_config({'only': log}, TRAIN_W,
+                      min_trades=25, fallback_min_trades=40)
+
+
+def test_select_nothing_qualified_error_names_the_best_config():
+    weak = _log(pd.date_range('2024-01-02', periods=30, freq='9D'), [0.5] * 30)
+    weaker = _log(pd.date_range('2024-01-02', periods=10, freq='30D'), [0.5] * 10)
+    with pytest.raises(ValueError, match="'weak'"):
+        select_config({'weak': weak, 'weaker': weaker}, TRAIN_W,
+                      min_trades=40, fallback_min_trades=35)
+
+
+def test_select_on_empty_logs_raises_cleanly():
+    with pytest.raises(ValueError, match='no configuration'):
+        select_config({}, TRAIN_W, min_trades=40, fallback_min_trades=25)

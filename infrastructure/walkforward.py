@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import NamedTuple
 
+import numpy as np
 import pandas as pd
 
 DATE_COL = 'date'
@@ -77,7 +79,12 @@ def normalize_log(df: pd.DataFrame) -> pd.DataFrame:
       NaN in the input raises ValueError naming the count and offending row
       indices - it is coerced, never silently dropped. A value that was
       already NaN in the input (a genuinely missing R) passes through as NaN
-      without raising, since that's a data property, not a parse failure.
+      without raising, since that's a data property, not a parse failure. A
+      non-finite value (+inf/-inf) always raises, whether or not it was
+      already infinite in the input - unlike a missing R, an infinite R is
+      never a legitimate data state, and letting it through would corrupt any
+      mean computed over the column (a single +inf/-inf silently dominates or
+      NaNs out an expectancy).
     - Rows are sorted ascending by `date`.
 
     Logs are written by several runners; this is the one place that decides what
@@ -106,13 +113,15 @@ def normalize_log(df: pd.DataFrame) -> pd.DataFrame:
     raw_r = out[R_COL]
     coerced_r = pd.to_numeric(raw_r, errors='coerce')
     newly_nan = coerced_r.isna() & ~raw_r.isna()
-    if newly_nan.any():
-        bad_idx = list(out.index[newly_nan])
+    non_finite = coerced_r.notna() & ~np.isfinite(coerced_r)
+    invalid = newly_nan | non_finite
+    if invalid.any():
+        bad_idx = list(out.index[invalid])
         shown = bad_idx[:5]
         suffix = ', ...' if len(bad_idx) > 5 else ''
         raise ValueError(
-            f"{R_COL} has {len(bad_idx)} unparseable value(s) at row "
-            f"index {shown}{suffix}")
+            f"{R_COL} has {len(bad_idx)} unparseable or non-finite value(s) "
+            f"at row index {shown}{suffix}")
     out[R_COL] = coerced_r
 
     return out.sort_values(DATE_COL).reset_index(drop=True)
@@ -155,6 +164,17 @@ def dedupe_logs(logs: dict[str, pd.DataFrame]) -> tuple[dict[str, pd.DataFrame],
     return kept, dropped
 
 
+class ConfigStat(NamedTuple):
+    """One configuration's training-window trade count and expectancy.
+
+    Named fields so the ranking key in `select_config` reads as intent
+    (`.expectancy`, `.n_trades`) instead of an unlabelled `kv[1][0]`/`kv[1][1]`
+    that a future edit could transpose without any type error to catch it.
+    """
+    n_trades: int
+    expectancy: float
+
+
 @dataclass(frozen=True)
 class Selection:
     """What one training window chose, and on what evidence."""
@@ -187,7 +207,15 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
     the Selection records that it happened. If nothing clears that either, this
     raises rather than quietly returning a fluke.
     """
-    stats: dict[str, tuple[int, float]] = {}
+    if min_trades < 1:
+        raise ValueError(f"min_trades must be >= 1, got {min_trades}")
+    if fallback_min_trades > min_trades:
+        raise ValueError(
+            f"fallback_min_trades ({fallback_min_trades}) must be <= "
+            f"min_trades ({min_trades}) - the fallback is a more lenient "
+            f"floor, so it can never exceed the primary one")
+
+    stats: dict[str, ConfigStat] = {}
     for name, log in logs.items():
         train = slice_dates(normalize_log(log), window.train_start, window.train_end)
         # Drop unresolved trades ONCE, before both the count and the mean, so the
@@ -198,21 +226,29 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
         # silently tilts which configuration wins.
         train = train.dropna(subset=[R_COL])
         if len(train):
-            stats[name] = (len(train), float(train[R_COL].mean()))
+            stats[name] = ConfigStat(n_trades=len(train),
+                                     expectancy=float(train[R_COL].mean()))
 
     for floor in (min_trades, fallback_min_trades):
-        eligible = {n: v for n, v in stats.items() if v[0] >= floor}
+        eligible = {n: v for n, v in stats.items() if v.n_trades >= floor}
         if eligible:
             # expectancy desc, then trade count desc, then name asc
-            best = min(eligible.items(), key=lambda kv: (-kv[1][1], -kv[1][0], kv[0]))
-            name, (n, exp) = best
+            best = min(eligible.items(),
+                       key=lambda kv: (-kv[1].expectancy, -kv[1].n_trades, kv[0]))
+            name, stat = best
             return Selection(
-                window=window, config=name, train_trades=n,
-                train_expectancy=exp, n_eligible=len(eligible),
+                window=window, config=name, train_trades=stat.n_trades,
+                train_expectancy=stat.expectancy, n_eligible=len(eligible),
                 floor_used=floor, floor_relaxed=(floor != min_trades),
             )
 
+    if stats:
+        best_name, best_stat = max(stats.items(), key=lambda kv: kv[1].n_trades)
+        detail = f"best was '{best_name}' with {best_stat.n_trades} training trades"
+    else:
+        detail = "no configuration had any training trades"
+
     raise ValueError(
         f"window {window.index}: no configuration reached {fallback_min_trades} "
-        f"training trades (best was {max((v[0] for v in stats.values()), default=0)})"
+        f"training trades ({detail})"
     )
