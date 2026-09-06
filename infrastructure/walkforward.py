@@ -275,3 +275,35 @@ def collect_test_trades(log: pd.DataFrame, window: Window) -> pd.DataFrame:
         )
     # own the frame - run_walkforward assigns a window column onto this
     return out.copy()
+
+
+def run_walkforward(logs: dict[str, pd.DataFrame], first_date, last_date,
+                    min_train_quarters: int = 4, test_quarters: int = 1,
+                    min_trades: int = 40,
+                    fallback_min_trades: int = 25
+                    ) -> tuple[pd.DataFrame, list[Selection]]:
+    """Select inside each training window, trade the winner forward, stitch.
+
+    Returns (stitched_trades, selections). The stitched frame carries a
+    `window` column so per-window results stay recoverable; it is the honest
+    result and is returned whatever it says.
+    """
+    windows = make_windows(first_date, last_date,
+                           min_train_quarters=min_train_quarters,
+                           test_quarters=test_quarters)
+    selections: list[Selection] = []
+    frames: list[pd.DataFrame] = []
+    for window in windows:
+        sel = select_config(logs, window, min_trades=min_trades,
+                            fallback_min_trades=fallback_min_trades)
+        selections.append(sel)
+        part = collect_test_trades(logs[sel.config], window)
+        if len(part):
+            part = part.copy()
+            part['window'] = window.index
+            part['config'] = sel.config
+            frames.append(part)
+
+    stitched = (pd.concat(frames, ignore_index=True) if frames
+                else pd.DataFrame(columns=[DATE_COL, R_COL, 'window', 'config']))
+    return stitched, selections

@@ -2,9 +2,10 @@
 import pandas as pd
 import pytest
 
-from infrastructure.walkforward import (Window, dedupe_logs, log_fingerprint,
-                                        make_windows, normalize_log,
-                                        select_config, slice_dates)
+from infrastructure.walkforward import (DATE_COL, R_COL, Window, dedupe_logs,
+                                        log_fingerprint, make_windows,
+                                        normalize_log, select_config,
+                                        slice_dates)
 
 
 def _log(dates, rs, instrument='EURUSD'):
@@ -283,3 +284,102 @@ def test_collect_raises_if_window_overlaps_training():
     log = _log(pd.date_range('2024-10-15', periods=5, freq='3D'), [0.1] * 5)
     with pytest.raises(ValueError, match='window 7'):
         collect_test_trades(log, overlapping_w)
+
+
+from infrastructure.walkforward import run_walkforward
+
+
+def test_walkforward_exposes_a_config_that_only_worked_in_training():
+    """The behaviour that justifies this whole module.
+
+    `mirage` looks best in every training window and loses in every test
+    window. A naive full-sample backtest would crown it. Walk-forward must
+    select it and then report the losses it actually produced.
+    """
+    dates = pd.date_range('2024-04-01', '2026-09-01', freq='3D')
+    mirage_r = [2.0 if d < pd.Timestamp('2025-04-01') else -1.0 for d in dates]
+    steady_r = [0.05] * len(dates)
+    logs = {'mirage': _log(dates, mirage_r), 'steady': _log(dates, steady_r)}
+
+    stitched, selections = run_walkforward(logs, '2024-04-05', '2026-09-04',
+                                           min_trades=40)
+
+    assert len(selections) == 6
+    assert selections[0].config == 'mirage'
+    assert len(stitched) > 0
+    assert stitched['pnl_r'].sum() < 0
+
+
+def test_walkforward_stitched_periods_are_disjoint():
+    dates = pd.date_range('2024-04-01', '2026-09-01', freq='3D')
+    logs = {'a': _log(dates, [0.1] * len(dates)),
+            'b': _log(dates, [0.2] * len(dates))}
+    stitched, selections = run_walkforward(logs, '2024-04-05', '2026-09-04',
+                                           min_trades=40)
+    assert stitched['window'].is_monotonic_increasing
+    for w in selections:
+        rows = stitched[stitched['window'] == w.window.index]
+        assert (rows['date'] > w.window.train_end).all()
+
+
+def test_walkforward_is_deterministic():
+    dates = pd.date_range('2024-04-01', '2026-09-01', freq='3D')
+    logs = {'a': _log(dates, [0.1] * len(dates)),
+            'b': _log(dates, [0.1] * len(dates)),
+            'c': _log(dates, [0.2] * len(dates))}
+    r1 = run_walkforward(logs, '2024-04-05', '2026-09-04', min_trades=40)
+    r2 = run_walkforward(logs, '2024-04-05', '2026-09-04', min_trades=40)
+    assert [s.config for s in r1[1]] == [s.config for s in r2[1]]
+
+
+def test_walkforward_counts_a_window_even_when_the_winner_did_not_trade():
+    """Winning configuration has 0 test-period trades in one window -> that
+    window still appears in `selections`, it just contributes no rows to the
+    stitched frame.
+
+    Config 'a' has strong, constant expectancy (0.5) everywhere except it has
+    NO trades at all after 2026-07-01 - which is exactly the test period of
+    the LAST window (index 5) and, critically, never falls inside any
+    window's *training* period (every window's training ends by 2026-06-30),
+    so removing those dates cannot change who wins selection anywhere. Config
+    'b' trades everywhere but with weaker expectancy (0.05), so it never
+    wins. 'a' must therefore win every window, including the last one, whose
+    test slice is then genuinely empty.
+    """
+    dates = pd.date_range('2024-04-01', '2026-09-01', freq='3D')
+    a_dates = [d for d in dates if d < pd.Timestamp('2026-07-01')]
+    logs = {'a': _log(a_dates, [0.5] * len(a_dates)),
+            'b': _log(dates, [0.05] * len(dates))}
+
+    stitched, selections = run_walkforward(logs, '2024-04-05', '2026-09-04',
+                                           min_trades=40)
+
+    assert len(selections) == 6
+    assert all(s.config == 'a' for s in selections)
+    last_window = selections[-1].window
+    assert last_window.test_start.date().isoformat() == '2026-07-01'
+    assert stitched[stitched['window'] == last_window.index].empty
+    # earlier windows did contribute rows - the gap only affects the last one
+    assert len(stitched) > 0
+
+
+def test_walkforward_returns_well_formed_empty_frame():
+    """If every window's winner has zero test-period trades, `stitched` must
+    still come back as a DataFrame carrying the expected columns rather than
+    something that blows up on `stitched['pnl_r']` downstream.
+
+    Constructed by confining the only configuration's trades entirely to
+    dates before the first window's test period even starts (2025-04-01).
+    Expanding training then sees the same fixed pool of ~121 trades in every
+    window - comfortably above the floor, so selection succeeds every time -
+    while no window's test slice ever contains a trade.
+    """
+    train_only_dates = pd.date_range('2024-04-01', '2025-03-30', freq='3D')
+    logs = {'only': _log(train_only_dates, [0.5] * len(train_only_dates))}
+
+    stitched, selections = run_walkforward(logs, '2024-04-05', '2026-09-04',
+                                           min_trades=40)
+
+    assert len(selections) == 6
+    assert len(stitched) == 0
+    assert list(stitched.columns) == [DATE_COL, R_COL, 'window', 'config']
