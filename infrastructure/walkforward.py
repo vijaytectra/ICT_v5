@@ -19,7 +19,15 @@ R_COL = 'pnl_r'
 
 @dataclass(frozen=True)
 class Window:
-    """One train/test split. Both bounds are inclusive."""
+    """One train/test split. Both bounds are inclusive.
+
+    ``train_end`` and ``test_end`` come from ``Period.end_time``: the last
+    nanosecond of the quarter (e.g. ``2025-03-31 23:59:59.999999999``), not
+    midnight of the last day. A caller filtering rows with
+    ``df[DATE_COL] <= window.train_end`` gets the full last day included, as
+    intended - but comparing against a bare date/midnight timestamp instead
+    would silently drop that final day.
+    """
     index: int
     train_start: pd.Timestamp
     train_end: pd.Timestamp
@@ -34,6 +42,13 @@ def make_windows(first_date, last_date, min_train_quarters: int = 4,
     Training always starts at the first quarter and grows; only the test period
     slides. That mirrors re-tuning on the whole history you actually have.
     """
+    if min_train_quarters < 1:
+        raise ValueError(
+            f"min_train_quarters must be >= 1, got {min_train_quarters}")
+    if test_quarters < 1:
+        raise ValueError(
+            f"test_quarters must be >= 1, got {test_quarters}")
+
     quarters = pd.period_range(pd.Timestamp(first_date),
                                pd.Timestamp(last_date), freq='Q')
     windows: list[Window] = []
