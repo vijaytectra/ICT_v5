@@ -209,6 +209,9 @@ def select_config(logs: dict[str, pd.DataFrame], window: Window,
     """
     if min_trades < 1:
         raise ValueError(f"min_trades must be >= 1, got {min_trades}")
+    if fallback_min_trades < 1:
+        raise ValueError(
+            f"fallback_min_trades must be >= 1, got {fallback_min_trades}")
     if fallback_min_trades > min_trades:
         raise ValueError(
             f"fallback_min_trades ({fallback_min_trades}) must be <= "

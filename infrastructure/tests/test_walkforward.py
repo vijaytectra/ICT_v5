@@ -239,3 +239,10 @@ def test_select_nothing_qualified_error_names_the_best_config():
 def test_select_on_empty_logs_raises_cleanly():
     with pytest.raises(ValueError, match='no configuration'):
         select_config({}, TRAIN_W, min_trades=40, fallback_min_trades=25)
+
+
+def test_select_rejects_fallback_min_trades_below_one():
+    log = _log(pd.date_range('2024-01-02', periods=50, freq='5D'), [0.5] * 50)
+    with pytest.raises(ValueError, match='fallback_min_trades'):
+        select_config({'only': log}, TRAIN_W,
+                      min_trades=40, fallback_min_trades=0)
