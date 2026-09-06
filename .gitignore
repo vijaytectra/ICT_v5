@@ -33,3 +33,6 @@ results/
 
 # ── Jupyter ──
 .ipynb_checkpoints/
+
+# ── Reference repos (read-only research clones, never committed) ──
+_refs/
