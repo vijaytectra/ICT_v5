@@ -89,6 +89,47 @@ def chicago_range(
     return session_high_low(df, session_date, start_ny='09:15', end_ny='12:00')
 
 
+def asian_range(
+    df: pd.DataFrame,
+    session_date: pd.Timestamp,
+) -> Optional[dict]:
+    """
+    Compute the high/low of the Asian range preceding session_date.
+
+    Asia: 20:00-00:00 NY on the *previous* calendar evening - the quiet
+    accumulation range whose high/low are the first manipulation targets of the
+    London killzone. This is the forex analogue of the futures ONS/Chicago
+    pools: the 2020 ICT forex notes make raiding Asian-session stops the first
+    objective after the London open (strategies/notes/ict-forex-notes-mmari-2020.md
+    section 15). See sessions-and-ranges.md.
+
+    The window lies wholly inside the prior calendar day, so no midnight-spanning
+    logic is needed - it is read off `session_date - 1 day`.
+    """
+    prior = session_date - pd.Timedelta(days=1)
+    return session_high_low(df, prior, start_ny='20:00', end_ny='23:59')
+
+
+def am_hour_range(
+    df: pd.DataFrame,
+    session_date: pd.Timestamp,
+    start_ny: str = '09:00',
+    minutes: int = 60,
+) -> Optional[dict]:
+    """
+    High/low of the hour preceding the NY AM Silver Bullet window.
+
+    Default 09:00-10:00 NY. The Mobius knowledge base defines the Silver Bullet
+    setup around exactly this range: mark the 9:00 AM hour candle's high and low,
+    wait for one side to be swept after 10:00, and target the opposite end. That
+    makes it a pool in its own right, distinct from the 09:30 RTH opening range.
+    """
+    sh, sm = map(int, start_ny.split(':'))
+    end_min = sh * 60 + sm + minutes
+    end_ny = f"{end_min // 60:02d}:{end_min % 60:02d}"
+    return session_high_low(df, session_date, start_ny=start_ny, end_ny=end_ny)
+
+
 def session_high_low(
     df: pd.DataFrame,
     session_date: pd.Timestamp,

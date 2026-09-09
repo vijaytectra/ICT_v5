@@ -1,0 +1,72 @@
+name: idx_dow
+description: "Dow 30 CFD - E6 config: ONS+REH/REL pools, 2R target, FVG/OB/breaker arrays"
+
+# Backtest settings
+start_date: "2024-05-01"
+instrument: USA30IDXUSD
+dollars_per_point: 1.0          # P&L reported in index points
+use_daily_bias: true
+
+# ---- Execution costs -------------------------------------------------------
+# Half of each bar's recorded ask-bid spread, charged on entry and exit in the
+# direction that costs the trade. Commission and slippage are explicitly zero.
+use_spread: true
+commission_points: 0.0
+slippage_points: 0.0
+
+# ---- Killzones (NY local) -------------------------------------------------
+# ny_kz_indices_ny (08:30-11:00) per killzones.md, not the forex window.
+killzones:
+  - ["02:00", "05:00"]
+  - ["08:30", "11:00"]
+  - ["13:30", "16:00"]
+
+# ---- Pools ----------------------------------------------------------------
+# Post-mortem of the 148-trade all-pools baseline, by swept pool, total R:
+#     ONS (overnight 05:00-09:15 NY)  +25.3     <- the entire edge
+#     REH / REL                        +6.9
+#     Chicago pit (prior + same-day)  -12.1
+#     opening range 09:30              -8.3
+#     PDH + PDL                        -6.1
+#
+# The timing is mechanical: a pool cannot be swept before its own formed_at, so
+# each family owns a slot in the day - Chicago same-day is unsweepable before
+# 12:00, the opening range before 10:00, while sweeps in 09:15-10:00 carry
+# +21.1R and everything after 10:00 is negative. _detect_sweep takes the
+# earliest valid sweep and the model takes one setup per session, so the early
+# pools were also consuming sessions the ONS setup never got to see.
+use_ons: true
+use_reh_rel: true
+use_pdh_pdl: false
+use_chicago_prior: false
+use_chicago_same_day: false
+use_opening_range: false
+use_asian_range: false          # tested: -11.7R, clearly harmful
+
+# ---- Entry ----------------------------------------------------------------
+# Near edge, not CE: CE improved all three FX pairs but lost on two of three
+# indices. Arrays are tried in order, so OB and breaker only come into play
+# when no FVG formed at the MSS - which is why Dow and S&P are bit-identical
+# with and without them, while Nasdaq gains ~8R at every target level. The
+# Mobius case studies name the breaker, not the FVG, as the SB entry structure.
+fvg_entry_depth: edge
+entry_arrays: [fvg, ob, breaker]
+array_lookback_bars: 300
+
+# ---- Price-scaled params (index points) -----------------------------------
+# eq_tolerance ~ 0.5x median 15m bar range, max_stop ~ 2.5x median 15m ATR,
+# stop_buffer ~ 1.5x median 2m ATR, measured on this instrument's own data.
+stop_mode: wick
+eq_tolerance_pts: 19.0
+max_stop_pts: 110.0
+stop_fixed_pts: 110.0
+stop_buffer_pts: 21.0
+
+# ---- Target ---------------------------------------------------------------
+# 2.0R, not 3.0R. Sensitivity across 1.0/1.5/2.0/2.5/3.0 is a smooth inverted-U
+# peaking at 2.0 with 2.5 second - a plateau, not a spike - and 2.0 and 2.5 are
+# the only levels where all three instruments are positive. Below 1.5R Nasdaq
+# turns negative. Per instrument the peaks differ (Dow 2.0, Nasdaq 2.5, S&P
+# roughly flat), so 2.0 is the common choice rather than any one instrument's
+# best. ATR stops were tested here and were worse (33.5R vs 48.8R).
+target_min_rr: 2.0

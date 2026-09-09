@@ -351,6 +351,6 @@ def build_report(
         title=html.escape(title), cdn=_PLOTLY_CDN,
         options="".join(options), views="\n".join(views),
     )
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(page)
     return out_path

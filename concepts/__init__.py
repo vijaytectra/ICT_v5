@@ -20,6 +20,9 @@ from concepts.ict.pd_arrays.fair_value_gap.fair_value_gap import FVG, find_fvgs
 from concepts.ict.market_structure.market_structure import (
     SwingPointScanner, detect_mss, detect_cisd, find_relative_equal_levels,
 )
+from concepts.ict.pd_arrays.breaker_block.breaker_block import (
+    BreakerBlock, find_breaker_blocks,
+)
 from concepts.merchant.price_action.failure_swing.hpfs import find_hpfs
 from concepts.ict.pd_arrays.premium_discount.premium_discount import (
     premium_discount, premium_discount_levels,
@@ -30,10 +33,14 @@ from concepts.ict.daily_bias.ohlc_profiles.ohlc_profiles import (
 from concepts.ict.liquidity.liquidity_sweep.liquidity_sweep import (
     detect_liquidity_sweep, classify_sweep_or_run, first_breach,
 )
-from concepts.ict.entries.smt_divergence.smt_divergence import detect_smt, smt_confirmed
+from concepts.ict.entries.smt_divergence.smt_divergence import (
+    SMTEvent, find_smt_events, find_smt_breach_events,
+    realised_correlation, negated_at, smt_is_live,
+    detect_smt, smt_confirmed,          # deprecated, kept for sniper_model
+)
 from concepts.ict.time_and_price.killzones.killzones import session_mask, in_killzone
 from concepts.ict.time_and_price.sessions.sessions import (
-    opening_range, session_high_low, ons_range, chicago_range,
+    opening_range, session_high_low, ons_range, chicago_range, asian_range, am_hour_range,
 )
 from concepts.ict.entries.targets.targets import find_liquidity_target, rr_ratio
 from concepts.ict.daily_bias.draw_on_liquidity.draw_on_liquidity import (
@@ -57,9 +64,13 @@ __all__ = [
     'premium_discount', 'premium_discount_levels',
     'ohlc_candle_profile', 'entry_side_valid',
     'detect_liquidity_sweep', 'classify_sweep_or_run', 'first_breach',
+    'SMTEvent', 'find_smt_events', 'find_smt_breach_events',
+    'realised_correlation', 'negated_at', 'smt_is_live',
     'detect_smt', 'smt_confirmed',
     'session_mask', 'in_killzone',
     'opening_range', 'session_high_low', 'ons_range', 'chicago_range',
+    'asian_range', 'am_hour_range',
+    'BreakerBlock', 'find_breaker_blocks',
     'find_liquidity_target', 'rr_ratio',
     'draw_on_liquidity', 'draw_on_liquidity_levels',
     'classify_swing_liquidity', 'hpfs_pools', 'find_raid_bar',

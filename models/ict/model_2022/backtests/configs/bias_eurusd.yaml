@@ -1,0 +1,55 @@
+name: bias_eurusd
+description: "EUR/USD - daily bias gate ON (SB failure mode 1: counter-bias); otherwise identical to forex_eurusd: London/NY-forex/London-close killzones, Asian-range pool, pip-scaled stops"
+
+# Backtest settings
+start_date: "2024-05-01"        # data starts 2024-01-01; leaves >14wk warmup
+instrument: EURUSD
+# SB rule 2 requires HTF bias confirmation; failure mode 1 is the counter-bias SB.
+# With this false the runner tries BOTH directions every session.
+use_daily_bias: true
+dollars_per_point: 100000.0           # 1 standard lot: 1.00 move = $100,000, so 1 pip = $10
+
+# ---- Killzones (NY local) -------------------------------------------------
+# From killzones.md frontmatter, using the FOREX row for the NY window
+# (ny_kz_forex_ny 07:00-10:00, not the 08:30-11:00 indices window), and
+# swapping the equities PM session (13:30-16:00) for London Close.
+# Cross-checks against the 2020 GMT forex notes: London 06:00-10:00 GMT =
+# 01:00-05:00 NY, NY 12:00-15:00 GMT = 07:00-10:00 NY, London close
+# 15:00-18:00 GMT = 10:00-13:00 NY.
+killzones:
+  - ["02:00", "05:00"]          # London
+  - ["07:00", "10:00"]          # New York (forex)
+  - ["10:00", "12:00"]          # London close
+
+# ---- Pools ----------------------------------------------------------------
+# Spot FX has no CME pit and no RTH cash open, so the Chicago and ONS pools
+# (09:15-12:00 / 05:00-09:15 NY globex windows) are futures-only and switched
+# off. The Asian range replaces them as the pool London raids first.
+use_pdh_pdl: true
+use_asian_range: true
+use_ons: false
+use_chicago_prior: false
+use_chicago_same_day: false
+use_opening_range: true
+use_reh_rel: true
+
+# Opening range anchored to the London open (03:00 NY = 08:00 London) instead
+# of the 09:30 NY equities cash open, which does not exist in spot FX.
+opening_range_start: "03:00"
+opening_range_minutes: 30
+
+# ---- Price-scaled params (pips, not index points) -------------------------
+# eq_tolerance ~ 0.5x median 15m bar range; max_stop ~ 2.5x median 15m ATR14,
+# both measured on this pair's own 2024-2026 data. Cross-checks against NQ:
+# 20pt/20000 = 10bps, and these land at 11-13bps.
+stop_mode: wick
+# ICT teaches a 2-5 pip buffer beyond the structural stop level; a stop placed
+# exactly at the swept wick gets taken out by routine noise (and on FX the raw
+# wick sits inside the spread). 3 pips sits mid-range.
+stop_buffer_pts: 0.0003            # 3 pips
+eq_tolerance_pts: 0.00025            # 2.5 pips
+max_stop_pts: 0.0013                # 13 pips
+stop_fixed_pts: 0.0013
+
+# ---- Target ---------------------------------------------------------------
+target_min_rr: 3.0

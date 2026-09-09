@@ -5,7 +5,7 @@ category: pd-arrays
 related: [order-block, mitigation-block, liquidity-sweep-stop-hunt, unicorn, inversion-fvg]
 parameters:
   required_sequence: "swing -> liquidity sweep of that swing -> displacement back through the originating OB"
-detection: not-implemented
+detection: implemented
 ---
 
 # Breaker Block

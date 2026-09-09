@@ -64,6 +64,51 @@ killzones:
 
 ---
 
+## 2b. Forex configs (EURUSD / GBPUSD / USDJPY)
+
+`forex_eurusd.yaml`, `forex_gbpusd.yaml`, `forex_usdjpy.yaml` run the same model on
+spot FX. Three things differ from the index-futures configs, all sourced from the
+ICT specs in-repo rather than guessed:
+
+**Killzones** - `killzones.md` frontmatter carries a separate forex NY window
+(`ny_kz_forex_ny` 07:00-10:00, vs `ny_kz_indices_ny` 08:30-11:00). The forex configs
+use London 02:00-05:00, NY 07:00-10:00 and London Close 10:00-12:00, dropping the
+equities PM session (13:30-16:00). These agree with the 2020 GMT forex notes
+(`strategies/notes/ict-forex-notes-mmari-2020.md` section 9) once converted to NY time.
+
+**Pools** - spot FX has no CME pit and no RTH cash open, so `use_chicago_prior`,
+`use_chicago_same_day` and `use_ons` (all globex/pit windows) are off. In their place
+`use_asian_range` adds the prior 20:00-00:00 NY Asian range, whose stops the London
+killzone raids first. The opening range is re-anchored from 09:30 NY (equities cash
+open) to 03:00 NY (London open).
+
+`use_asian_range` defaults to **False** in `Model2022.DEFAULT_CONFIG`, so index-futures
+runs are unaffected.
+
+**Price-scaled params** - `eq_tolerance_pts`, `max_stop_pts` and `stop_fixed_pts` are
+index points on NQ/ES/YM and must be restated in price units for FX. Values were
+measured on each pair's own 2024-2026 data (`eq_tolerance` ~ 0.5x median 15m bar
+range, `max_stop` ~ 2.5x median 15m ATR14):
+
+| Param | NQ | EURUSD | GBPUSD | USDJPY |
+|---|---|---|---|---|
+| `eq_tolerance_pts` | 5.0 | 0.00025 (2.5p) | 0.00030 (3.0p) | 0.035 (3.5p) |
+| `max_stop_pts` | 20.0 | 0.0013 (13p) | 0.0017 (17p) | 0.20 (20p) |
+| `dollars_per_point` | 20.0 | 100000 | 100000 | 640 |
+
+Sanity check: as a fraction of price these land at 11-13 bps, against NQ's
+20pt/20000 = 10 bps.
+
+`dollars_per_point` is a backtest-runner key (see `DOLLARS_PER_POINT` in
+`fvg_sweep_backtest.py`); FX values assume **1 standard lot** (100,000 base units), so
+1 pip = $10 on the USD-quoted pairs. USDJPY is JPY-quoted and therefore rate-dependent
+- 640 approximates 100000/156 and should be revisited if the rate moves materially.
+
+**Windows note**: these scripts print non-ASCII characters, which the default cp1252
+console cannot encode. Prefix runs with `PYTHONIOENCODING=utf-8`.
+
+---
+
 ## 3. Automated grid search (Option B)
 
 Edit `PARAM_GRID` in `backtests/grid_search.py` to define which parameters to sweep and what values to try. Uses `itertools.product` for the full cross-product. Data is loaded once and reused.

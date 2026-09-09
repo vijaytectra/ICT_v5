@@ -38,53 +38,63 @@ class SwingPointScanner:  # no depends_on — primitive
         """
         Identify all swing highs and swing lows in the dataset.
         Returns DataFrame with swing_high and swing_low columns.
+
+        A bar is a swing high when every one of the `lookback` bars on each side
+        has a strictly lower high (mirrored for lows) - a symmetric fractal.
+        "All of the left window is below me" is the same statement as "the max
+        of the left window is below me", so both sides are rolling maxima and
+        the whole thing is two vectorised comparisons rather than a per-bar
+        Python loop. This function was 90% of backtest runtime as a loop.
+
+        NaN handling matches the loop it replaces: `rolling(n)` needs n valid
+        observations, so a gap anywhere in either window yields NaN, and the
+        comparison against NaN is False - exactly what `all(x < current)`
+        returned when a neighbouring bar was missing.
         """
         df = self.df.copy()
         n = self.lookback
-        
-        # Initialize columns
+
         df['swing_high'] = np.nan
         df['swing_low'] = np.nan
         df['swing_high_price'] = np.nan
         df['swing_low_price'] = np.nan
-        
+
         # Need at least (2*lookback + 1) candles to identify a swing
         if len(df) < (2 * n + 1):
             return df
-        
-        # Identify swing highs
-        for i in range(n, len(df) - n):
-            current_high = df['high'].iloc[i]
-            
-            # Check if all lookback candles on left have lower highs
-            left_condition = all(df['high'].iloc[i - j] < current_high for j in range(1, n + 1))
-            
-            # Check if all lookback candles on right have lower highs
-            right_condition = all(df['high'].iloc[i + j] < current_high for j in range(1, n + 1))
-            
-            if left_condition and right_condition:
-                df.loc[df.index[i], 'swing_high'] = 1
-                df.loc[df.index[i], 'swing_high_price'] = current_high
-        
-        # Identify swing lows
-        for i in range(n, len(df) - n):
-            current_low = df['low'].iloc[i]
-            
-            # Check if all lookback candles on left have higher lows
-            left_condition = all(df['low'].iloc[i - j] > current_low for j in range(1, n + 1))
-            
-            # Check if all lookback candles on right have higher lows
-            right_condition = all(df['low'].iloc[i + j] > current_low for j in range(1, n + 1))
-            
-            if left_condition and right_condition:
-                df.loc[df.index[i], 'swing_low'] = 1
-                df.loc[df.index[i], 'swing_low_price'] = current_low
-        
+
+        highs = df['high'].to_numpy(dtype=float)
+        lows  = df['low'].to_numpy(dtype=float)
+
+        def _fractal(vals: np.ndarray, want_max: bool) -> np.ndarray:
+            fwd = pd.Series(vals)
+            rev = pd.Series(vals[::-1])
+            if want_max:
+                left  = fwd.shift(1).rolling(n).max().to_numpy()
+                right = rev.shift(1).rolling(n).max().to_numpy()[::-1]
+                hit = (vals > left) & (vals > right)
+            else:
+                left  = fwd.shift(1).rolling(n).min().to_numpy()
+                right = rev.shift(1).rolling(n).min().to_numpy()[::-1]
+                hit = (vals < left) & (vals < right)
+            # The loop only ever considered range(n, len(df) - n).
+            hit[:n] = False
+            hit[len(vals) - n:] = False
+            return hit
+
+        is_high = _fractal(highs, want_max=True)
+        is_low  = _fractal(lows,  want_max=False)
+
+        df['swing_high'] = np.where(is_high, 1.0, np.nan)
+        df['swing_low']  = np.where(is_low,  1.0, np.nan)
+        df['swing_high_price'] = np.where(is_high, highs, np.nan)
+        df['swing_low_price']  = np.where(is_low,  lows,  np.nan)
+
         self.swing_highs = df[df['swing_high'] == 1].copy()
         self.swing_lows = df[df['swing_low'] == 1].copy()
-        
+
         return df
-    
+
     def get_recent_swings(self, n: int = 5, swing_type: Literal['high', 'low', 'both'] = 'both') -> pd.DataFrame:
         """
         Get the most recent N swing points.

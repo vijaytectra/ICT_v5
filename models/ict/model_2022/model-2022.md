@@ -8,6 +8,9 @@ parameters:
   min_rr: 3                      # target floor; falls back to fixed 3R when nearest pool is closer
   max_stop_pts: 20               # stop cap: if swept wick is further than 20 pts from entry, stop is clamped to entry ± 20 pts
   primary_array: fair-value-gap
+  mss_swing_lookback: null       # fractal half-width for the MSS swing; null follows swing_lookback
+  reh_rel_swing_lookback: null   # fractal half-width for REH/REL clustering; null follows swing_lookback.
+                                 # Pin both to vary MSS sensitivity without rebuilding the pool set.
   pool_set: [PDH/PDL, Chicago-prior (09:15–12:00 NY prior day), ONS (05:00–09:15 NY), opening-range (09:30–10:00 NY), Chicago-same-day, session-swings, relative-equal-highs-lows]
   killzones: [london, ny_am, ny_pm]  # 02:00–05:00 NY, 07:00–10:00 NY, 13:30–16:00 NY
   bias: "daily — order flow + draw must align (gate); premium/discount is a logged entry-zone check, not a gate"

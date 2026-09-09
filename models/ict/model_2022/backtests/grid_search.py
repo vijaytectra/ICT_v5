@@ -123,12 +123,13 @@ def main():
     print(f"Grid search: {total} combinations\n")
 
     # Load data once and reuse across all runs
-    start_dt     = pd.Timestamp(DEFAULT_START_DATE)
+    instrument   = str(BASE_CONFIG.get('instrument', 'NQ')).upper()
+    start_dt     = pd.Timestamp(BASE_CONFIG.get('start_date', DEFAULT_START_DATE))
     warmup_start = start_dt - pd.Timedelta(weeks=WARMUP_WEEKS)
     weeks_needed = int((pd.Timestamp.now() - warmup_start).days / 7) + 4
-    print(f"Loading NQ 1m data (~{weeks_needed} weeks)...")
+    print(f"Loading {instrument} 1m data (~{weeks_needed} weeks)...")
     loader = DataLoader(timeframe='1min', weeks=weeks_needed, data_dir=DATA_DIR)
-    df_1m  = loader.read_NQ()
+    df_1m  = loader.read(instrument)
     print(f"  Loaded {len(df_1m):,} rows\n")
 
     rows   = []

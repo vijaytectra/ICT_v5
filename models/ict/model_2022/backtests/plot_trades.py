@@ -31,6 +31,7 @@ import sys
 import argparse
 
 import numpy as np
+from dataclasses import dataclass
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
@@ -66,29 +67,123 @@ def localize_to(ts: pd.Timestamp, ref_index: pd.DatetimeIndex) -> pd.Timestamp:
 
 # ─── Fill / Exit simulation ──────────────────────────────────────────────────
 
+@dataclass(frozen=True)
+class CostModel:
+    """Execution costs charged against a mid-price backtest.
+
+    The cleaned CSVs record a per-bar `spread` (the ask-bid distance at that
+    bar) alongside mid OHLC. Rather than invent a constant, half of that
+    recorded spread is applied around the mid on both entry and exit, in the
+    direction that costs the trade:
+
+        long  - buy the ask on entry (mid + h), sell the bid on exit (mid - h)
+        short - sell the bid on entry (mid - h), buy the ask on exit (mid + h)
+
+    `slippage_points` is adverse-only and applies to stop fills, where the
+    trigger is a market order. Limit fills (entry, target) get no slippage, but
+    note the fill test is a bare touch of the level: this model assumes **zero
+    queue latency and full fill on touch**, which real limit orders do not get.
+    Entry results are therefore optimistic even with spread charged.
+
+    All-zero defaults reproduce the pre-cost engine exactly.
+    """
+    use_spread: bool = False
+    spread_multiplier: float = 1.0
+    commission_points: float = 0.0     # round turn, in price points
+    slippage_points: float = 0.0       # adverse, stop fills only
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.use_spread or self.commission_points or self.slippage_points)
+
+    def half_spread(self, row) -> float:
+        """Half the bar's recorded spread, or 0.0 when not charging spread."""
+        if not self.use_spread:
+            return 0.0
+        try:
+            sp = float(row['spread'])
+        except (KeyError, TypeError, ValueError):
+            return 0.0
+        if sp != sp or sp <= 0:        # NaN or non-positive
+            return 0.0
+        return sp * 0.5 * self.spread_multiplier
+
+
+NO_COSTS = CostModel()
+
+
+def _entry_exec(price: float, direction: str, hs: float) -> float:
+    """Execution price for opening: long lifts the ask, short hits the bid."""
+    return price + hs if direction == 'long' else price - hs
+
+
+def _exit_exec(price: float, direction: str, hs: float) -> float:
+    """Execution price for closing: long hits the bid, short lifts the ask."""
+    return price - hs if direction == 'long' else price + hs
+
+
+def _stop_exec(row, stop: float, direction: str, hs: float, slip: float) -> float:
+    """Stop fill, honouring gaps and adverse slippage.
+
+    The trigger test is unchanged. What changes is the price: if the bar opened
+    beyond the stop the fill is taken at that open, because the level was gone
+    before the order could work. Slippage is then charged on top, always
+    against the position.
+    """
+    o = float(row['open'])
+    if direction == 'long':
+        px = min(stop, o)              # gapped below -> filled at the open
+        return _exit_exec(px - slip, direction, hs)
+    px = max(stop, o)                  # gapped above
+    return _exit_exec(px + slip, direction, hs)
+
+
 def simulate_fill(
     df: pd.DataFrame,
     signal: dict,
     session_date: pd.Timestamp,
     eod_hour: int = 16,
+    costs: CostModel = NO_COSTS,
+    expiry: pd.Timestamp | None = None,
+    cancel_on_target: bool = False,
 ) -> dict | None:
     """
     Scan bars after signal['entry_time'] for a limit fill.
-    Fill window: entry_time → EOD.
+
+    entry-sequence.md: "the limit isn't filled before the killzone closes / the
+    target pool is hit first (no chasing)". `expiry` is that killzone close and
+    `cancel_on_target` that no-chase rule; without them the order would rest
+    until the session flat, and a setup that only fills hours after its killzone
+    has closed is no longer the setup that was signalled.
+
     Short fills when high >= entry; long fills when low <= entry.
-    Returns {'fill_time', 'fill_price'} or None.
+    Returns {'fill_time', 'fill_price', ...} or None.
     """
     entry_time  = localize_to(signal['entry_time'], df.index)
     entry_price = signal['entry']
     direction   = signal['direction']
     eod         = eod_utc(session_date, eod_hour, tz_aware=(df.index.tz is not None))
 
+    if expiry is not None:
+        eod = min(eod, localize_to(expiry, df.index))
+
+    target = signal.get('target')
     window = df[(df.index > entry_time) & (df.index <= eod)]
     for ts, row in window.iterrows():
-        if direction == 'short' and row['high'] >= entry_price:
-            return {'fill_time': ts, 'fill_price': entry_price}
-        if direction == 'long' and row['low'] <= entry_price:
-            return {'fill_time': ts, 'fill_price': entry_price}
+        if cancel_on_target and target is not None:
+            reached = (float(row['low']) <= target if direction == 'short'
+                       else float(row['high']) >= target)
+            if reached:
+                return None            # target ran without us - do not chase
+        # Touch test on the mid is unchanged; only the executed price moves.
+        touched = (row['high'] >= entry_price if direction == 'short'
+                   else row['low'] <= entry_price)
+        if touched:
+            hs = costs.half_spread(row)
+            return {'fill_time': ts,
+                    'fill_price': _entry_exec(entry_price, direction, hs),
+                    'mid_fill_price': entry_price,
+                    'entry_spread_cost': hs}
     return None
 
 
@@ -98,10 +193,34 @@ def simulate_exit(
     fill: dict,
     session_date: pd.Timestamp,
     eod_hour: int = 16,
+    be_trigger_r: float = 0.0,
+    partials: list | None = None,
+    partial_be: bool = True,
+    costs: CostModel = NO_COSTS,
 ) -> dict:
     """
-    Scan bars from fill_time → EOD for first target or stop hit.
-    Falls back to EOD close. Returns {'exit_time', 'exit_price', 'exit_reason'}.
+    Scan bars from fill_time to EOD for the first target or stop hit.
+    Falls back to the EOD close.
+
+    be_trigger_r > 0 arms a breakeven stop: once the trade has run that many R
+    in favour, the stop moves to the entry price. Within a bar the original stop
+    and target are checked *before* the trigger is re-evaluated, so a bar that
+    both reaches the trigger and takes out the stop is scored as a loss - the
+    conservative reading, since bar data cannot say which came first.
+
+    `partials` is a schedule of (fraction, R_multiple) legs closed on the way to
+    the target, e.g. [(0.5, 1.0), (0.25, 2.0)] leaves a 25% runner. ICT teaches
+    these as the primary trade-management tool: bank realised R early, then move
+    the stop to breakeven on the remainder (`partial_be`). That is a different
+    proposition from a bare breakeven stop, which risks the whole position with
+    nothing banked. When a schedule is given the returned 'pnl_pts' is the
+    fraction-weighted total across every leg, and the caller should use it
+    instead of recomputing from a single exit price.
+
+    Returns {'exit_time', 'exit_price', 'exit_reason', 'mae_pts', 'mfe_pts',
+    'bars_held'}. MAE is how far price ran against the position before the exit
+    and MFE how far it ran in favour - together they say whether a stopped trade
+    was ever really working, which a bare win/loss column cannot.
     """
     direction = signal['direction']
     target    = signal['target']
@@ -109,24 +228,86 @@ def simulate_exit(
     fill_time = localize_to(fill['fill_time'], df.index)
     eod       = eod_utc(session_date, eod_hour, tz_aware=(df.index.tz is not None))
 
+    entry = float(fill['fill_price'])
     window = df[(df.index > fill_time) & (df.index <= eod)]
-    for ts, row in window.iterrows():
+
+    risk = abs(float(signal['stop']) - float(signal['entry']))
+    be_distance = be_trigger_r * risk if (be_trigger_r and risk > 0) else None
+    be_armed = False
+
+    sign = -1.0 if direction == 'short' else 1.0
+    legs = sorted(partials or [], key=lambda x: x[1])
+    pending = [(float(f), entry + sign * float(r) * risk) for f, r in legs] if risk > 0 else []
+    realized = 0.0          # fraction-weighted points already banked
+    remaining = 1.0
+
+    slip = costs.slippage_points
+    # Entry spread was charged on the full position inside fill_price; exit
+    # spread accrues per leg as each fraction closes.
+    spread_cost = float(fill.get('entry_spread_cost', 0.0))
+    slip_cost = 0.0
+
+    def _finish(ts, price, reason, exc, exit_hs=0.0, exit_slip=0.0):
+        pnl = realized + remaining * sign * (price - entry)
+        return {'exit_time': ts, 'exit_price': price, 'exit_reason': reason,
+                'pnl_pts': pnl, 'partials_filled': len(legs) - len(pending),
+                'spread_cost_pts': spread_cost + remaining * exit_hs,
+                'slippage_cost_pts': slip_cost + remaining * exit_slip,
+                **exc}
+
+    mae = mfe = 0.0
+    for n, (ts, row) in enumerate(window.iterrows(), 1):
+        hi, lo = float(row['high']), float(row['low'])
         if direction == 'short':
-            if row['low'] <= target:
-                return {'exit_time': ts, 'exit_price': target, 'exit_reason': 'target'}
-            if row['high'] >= stop:
-                return {'exit_time': ts, 'exit_price': stop, 'exit_reason': 'stop'}
+            mae = max(mae, hi - entry)
+            mfe = max(mfe, entry - lo)
         else:
-            if row['high'] >= target:
-                return {'exit_time': ts, 'exit_price': target, 'exit_reason': 'target'}
-            if row['low'] <= stop:
-                return {'exit_time': ts, 'exit_price': stop, 'exit_reason': 'stop'}
+            mae = max(mae, entry - lo)
+            mfe = max(mfe, hi - entry)
+        excursion = {'mae_pts': mae, 'mfe_pts': mfe, 'bars_held': n}
+        stop_reason = 'breakeven' if be_armed else 'stop'
+
+        # Stop and target are resolved before the partial legs, so a bar that
+        # both reaches a leg and takes out the stop is scored against us.
+        hs = costs.half_spread(row)
+        hit_target = (lo <= target) if direction == 'short' else (hi >= target)
+        hit_stop = (hi >= stop) if direction == 'short' else (lo <= stop)
+        if hit_target:
+            return _finish(ts, _exit_exec(target, direction, hs), 'target',
+                           excursion, exit_hs=hs)
+        if hit_stop:
+            # Market exit: gap-aware price, adverse slippage, then the spread.
+            return _finish(ts, _stop_exec(row, stop, direction, hs, slip),
+                           stop_reason, excursion, exit_hs=hs, exit_slip=slip)
+
+        while pending:
+            frac, level = pending[0]
+            hit = lo <= level if direction == 'short' else hi >= level
+            if not hit:
+                break
+            pending.pop(0)
+            take = min(frac, remaining)
+            realized += take * sign * (_exit_exec(level, direction, hs) - entry)
+            remaining -= take
+            spread_cost += take * hs
+            if partial_be and not be_armed:
+                be_armed = True
+                stop = entry
+            if remaining <= 1e-9:
+                return _finish(ts, _exit_exec(level, direction, hs), 'partial', excursion)
+
+        if be_distance is not None and not be_armed and mfe >= be_distance:
+            be_armed = True
+            stop = entry
 
     if len(window) > 0:
         last = window.iloc[-1]
-        return {'exit_time': window.index[-1],
-                'exit_price': float(last['close']), 'exit_reason': 'eod'}
-    return {'exit_time': fill_time, 'exit_price': fill['fill_price'], 'exit_reason': 'eod'}
+        hs = costs.half_spread(last)
+        return _finish(window.index[-1], _exit_exec(float(last['close']), direction, hs),
+                       'eod', {'mae_pts': mae, 'mfe_pts': mfe, 'bars_held': len(window)},
+                       exit_hs=hs)
+    return _finish(fill_time, entry, 'eod',
+                   {'mae_pts': 0.0, 'mfe_pts': 0.0, 'bars_held': 0})
 
 
 def calc_pnl_pts(direction: str, entry: float, exit_price: float) -> float:
@@ -135,7 +316,13 @@ def calc_pnl_pts(direction: str, entry: float, exit_price: float) -> float:
 
 # ─── Statistics ──────────────────────────────────────────────────────────────
 
-def compute_stats(trades: pd.DataFrame) -> dict:
+def compute_stats(trades: pd.DataFrame, price_dp: int = 2) -> dict:
+    """Aggregate trade stats.
+
+    price_dp controls rounding of the point-denominated fields. Index futures
+    quote in points so 2dp is plenty; FX prices move in ~0.0001 steps, where
+    2dp would round every points column to zero (pass 6, or 4 for JPY pairs).
+    """
     if len(trades) == 0:
         return {}
 
@@ -145,8 +332,12 @@ def compute_stats(trades: pd.DataFrame) -> dict:
     losses  = trades[trades['exit_reason'] == 'stop']
     eods    = trades[trades['exit_reason'].str.startswith('eod')]
 
-    gross_wins   = wins['pnl_usd'].sum() if len(wins) else 0.0
-    gross_losses = abs(losses['pnl_usd'].sum()) if len(losses) else 1e-9
+    # Profit factor over EVERY trade, by realised P&L sign. Keying it off
+    # exit_reason instead silently drops eod exits, and drops the 'partial' and
+    # 'breakeven' exits entirely once a partial-take schedule is running - which
+    # produced the contradiction of a run showing PF 0.87 on +$1,402.
+    gross_wins   = float(pnl_usd[pnl_usd > 0].sum())
+    gross_losses = abs(float(pnl_usd[pnl_usd < 0].sum())) or 1e-9
 
     equity = pnl_usd.cumsum()
     peak   = equity.cummax()
@@ -163,23 +354,80 @@ def compute_stats(trades: pd.DataFrame) -> dict:
     return {
         'total_trades':   len(trades),
         'total_pnl_usd':  round(float(pnl_usd.sum()), 2),
-        'total_pnl_pts':  round(float(pnl_pts.sum()), 2),
+        'total_pnl_pts':  round(float(pnl_pts.sum()), price_dp),
         'win_rate':        round(len(wins) / len(trades) * 100, 1),
+        # Share of trades that actually finished in profit, whatever the exit
+        # route - the meaningful figure when partials or EOD exits are in play.
+        'profitable_pct':  round(float((pnl_usd > 0).mean()) * 100, 1),
+        'profitable':      int((pnl_usd > 0).sum()),
+        'unprofitable':    int((pnl_usd < 0).sum()),
         'wins':            len(wins),
         'losses':          len(losses),
         'eods':            len(eods),
-        'avg_win_pts':     round(float(wins['pnl_pts'].mean()), 2) if len(wins) else 0,
-        'avg_loss_pts':    round(float(losses['pnl_pts'].mean()), 2) if len(losses) else 0,
+        'avg_win_pts':     round(float(wins['pnl_pts'].mean()), price_dp) if len(wins) else 0,
+        'avg_loss_pts':    round(float(losses['pnl_pts'].mean()), price_dp) if len(losses) else 0,
         'avg_win_usd':     round(float(wins['pnl_usd'].mean()), 2) if len(wins) else 0,
         'avg_loss_usd':    round(float(losses['pnl_usd'].mean()), 2) if len(losses) else 0,
         'profit_factor':   round(gross_wins / gross_losses, 2),
         'avg_rr':          round(avg_rr, 2),
         'max_dd_usd':      round(max_dd, 2),
         'sharpe_ratio':    round(sharpe, 2),
+        **_enriched(trades, pnl_usd, equity, daily_ret),
     }
 
+def _streak(flags) -> int:
+    """Longest run of True in an iterable of booleans."""
+    best = run = 0
+    for f in flags:
+        run = run + 1 if f else 0
+        best = max(best, run)
+    return best
 
-def print_stats(stats: dict, label: str = 'Results'):
+
+def _enriched(trades: pd.DataFrame, pnl_usd, equity, daily_ret) -> dict:
+    """Distribution and path statistics the headline figures hide.
+
+    Sortino divides by downside deviation only, so it does not penalise the
+    large upside days a 3R-target model depends on the way Sharpe does.
+    Drawdown duration is counted in trades rather than calendar time, because
+    the model takes at most one setup per session.
+    """
+    out = {}
+    if 'R' in trades.columns and len(trades):
+        r = trades['R']
+        out['avg_r'] = round(float(r.mean()), 3)
+        out['median_r'] = round(float(r.median()), 3)
+        out['total_r'] = round(float(r.sum()), 2)
+        out['expectancy_r'] = round(float(r.mean()), 3)
+    out['gross_profit_usd'] = round(float(pnl_usd[pnl_usd > 0].sum()), 2)
+    out['gross_loss_usd'] = round(float(pnl_usd[pnl_usd < 0].sum()), 2)
+    out['expectancy_usd'] = round(float(pnl_usd.mean()), 2)
+
+    downside = daily_ret[daily_ret < 0]
+    dstd = float(downside.std()) if len(downside) > 1 else 0.0
+    out['sortino_ratio'] = (round(float(daily_ret.mean() / dstd * np.sqrt(252)), 2)
+                            if dstd > 0 else 0.0)
+
+    peak = equity.cummax()
+    out['max_dd_duration_trades'] = _streak((equity < peak).tolist())
+    out['max_win_streak'] = _streak((pnl_usd > 0).tolist())
+    out['max_loss_streak'] = _streak((pnl_usd < 0).tolist())
+
+    if 'holding_minutes' in trades.columns:
+        h = trades['holding_minutes']
+        out['avg_holding_min'] = round(float(h.mean()), 1)
+        out['median_holding_min'] = round(float(h.median()), 1)
+    for col in ('spread_cost_pts', 'commission_pts', 'slippage_cost_pts', 'total_cost_pts'):
+        if col in trades.columns:
+            out['total_' + col] = round(float(trades[col].sum()), 4)
+    if 'mae_pts' in trades.columns:
+        out['avg_mae_pts'] = round(float(trades['mae_pts'].mean()), 4)
+        out['avg_mfe_pts'] = round(float(trades['mfe_pts'].mean()), 4)
+    return out
+
+
+
+def print_stats(stats: dict, label: str = 'Results', price_dp: int = 2):
     w = 52
     print(f"\n{'='*w}")
     print(f"  {label}")
@@ -188,11 +436,16 @@ def print_stats(stats: dict, label: str = 'Results'):
         print("  No trades.")
         return
     print(f"  Total trades:    {stats['total_trades']}")
-    print(f"  Win rate:        {stats['win_rate']}%  "
+    print(f"  Target hit:      {stats['win_rate']}%  "
           f"({stats['wins']}W / {stats['losses']}L / {stats['eods']} EOD)")
-    print(f"  Total P&L:       ${stats['total_pnl_usd']:>10,.2f}  ({stats['total_pnl_pts']:.1f} pts)")
-    print(f"  Avg win:         {stats['avg_win_pts']:>6.1f} pts  (${stats['avg_win_usd']:,.2f})")
-    print(f"  Avg loss:        {stats['avg_loss_pts']:>6.1f} pts  (${stats['avg_loss_usd']:,.2f})")
+    if 'profitable_pct' in stats:
+        # The figure that matters when trades also exit at EOD or on a partial:
+        # a target-only rate reads as 7.5% on a book that is 40% profitable.
+        print(f"  Profitable:      {stats['profitable_pct']}%  "
+              f"({stats.get('profitable')} up / {stats.get('unprofitable')} down)")
+    print(f"  Total P&L:       ${stats['total_pnl_usd']:>10,.2f}  ({stats['total_pnl_pts']:.{price_dp}f} pts)")
+    print(f"  Avg win:         {stats['avg_win_pts']:>10.{price_dp}f} pts  (${stats['avg_win_usd']:,.2f})")
+    print(f"  Avg loss:        {stats['avg_loss_pts']:>10.{price_dp}f} pts  (${stats['avg_loss_usd']:,.2f})")
     print(f"  Avg R:R (setup): {stats['avg_rr']:.2f}")
     print(f"  Profit factor:   {stats['profit_factor']:.2f}")
     print(f"  Max drawdown:    ${stats['max_dd_usd']:>10,.2f}")

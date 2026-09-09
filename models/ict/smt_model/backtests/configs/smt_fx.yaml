@@ -1,0 +1,92 @@
+name: smt_fx
+description: >
+  The same doctrine config pointed at the FX dollar group. Nothing is tuned for
+  FX - every bound is a fraction of each instrument's own 14-day ADR, so this
+  file differs from smt_indices.yaml only in the group, the bias reference and
+  the start date. If the model needs different numbers here, that is evidence
+  against it, not a reason to fork the config.
+
+group: fx_dollar                   # EURUSD, GBPUSD, DOLLARIDXUSD (DXY inverse)
+entry_timeframe: "5min"
+start_date: "2024-03-01"           # data starts 2024-01-02; leaves ADR warmup
+end_date: null
+
+# ---- Bias ------------------------------------------------------------------
+use_daily_bias: true
+bias_mode: strict
+bias_instrument: EURUSD            # the group's primary risk leg
+bias_lookback: 20
+four_h_gate: soft
+
+# ---- Comparison window -----------------------------------------------------
+windows: [am, pm]
+adr_days: 14
+
+# ---- SMT detection ---------------------------------------------------------
+swing_lookback: 2
+pivot_dedupe_bars: 2
+match_tolerance_bars: 1
+min_window_bars: 12
+
+# ---- SMT quality -----------------------------------------------------------
+require_smt: true
+min_clarity_adr: 0.0
+max_clarity_adr: 1000000.0
+min_sweep_depth_adr: 0.0
+
+# ---- Pool ------------------------------------------------------------------
+require_pool_live: true
+require_named_pool: false
+
+# ---- Raid rejection --------------------------------------------------------
+require_rejection: true
+close_back_within_bars: 3
+
+# ---- Reversal --------------------------------------------------------------
+require_reversal: true
+confirmation: cisd_or_mss
+max_minutes_to_reversal: 45
+mss_swing_lookback: 3
+
+# ---- Instrument selection --------------------------------------------------
+instrument_selection: diverging
+fixed_instrument: EURUSD
+
+# ---- Entry -----------------------------------------------------------------
+entry_style: limit
+entry_arrays: [fvg, ob]
+fvg_entry_depth: ce
+entry_fill_minutes: 120
+entry_search_bars: 12
+
+# ---- Stop ------------------------------------------------------------------
+stop_mode: smt_invalidation
+stop_buffer_adr: 0.02
+min_stop_adr_pct: 0.05
+max_stop_adr_pct: 0.40
+
+# ---- Target ----------------------------------------------------------------
+target_mode: rr
+target_rr: 2.0
+target_min_rr: 2.0
+cap_target_at_adr: false
+adr_target_pct: 0.90
+
+# ---- Session ---------------------------------------------------------------
+exit_ny: null
+one_trade_per_day: false   # one per (session, window)
+
+# ---- Execution -------------------------------------------------------------
+# DXY's recorded spread is 0.039 index points on a ~100 index (about 3.9 bps),
+# EURUSD's is 0.30 pips. Both come from the same feed the backtest prices on.
+costs:
+  spread_mode: historical
+  gap_fill: open
+  slippage_entry: 0.0
+  slippage_exit: 0.0
+  slippage_stop: 0.0
+  commission_round_turn: 0.0
+
+be_trigger_r: 0.0
+partials: null
+partial_be: true

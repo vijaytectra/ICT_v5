@@ -1,0 +1,109 @@
+name: smt_indices
+description: >
+  SMT doctrine config for the US index group (Nasdaq / S&P / Dow CFDs, the
+  NQ/ES/YM cash proxies). Every price bound is a fraction of the instrument's
+  own 14-day ADR, so this file runs unchanged on the FX group as well - there
+  is no per-instrument pip table to keep in sync and nothing to quietly become
+  curve-fitting.
+
+group: indices                     # 2015-01-01 -> 2026-09-04, 806,715 5m bars
+entry_timeframe: "5min"
+start_date: "2015-03-01"           # leaves warmup for the 14-day ADR + bias
+end_date: null
+
+# ---- Bias ------------------------------------------------------------------
+# "When one diverges, it doesn't necessarily mean that there's a trade. You have
+# to have the analysis on your dollar index because that's going to set the
+# tone." (M10 Relative Strength [07:15]). Bias-aligned SMT measured +0.082 ADR
+# against +0.021 for counter-bias readings, so this gate is not optional.
+use_daily_bias: true
+bias_instrument: USA500IDXUSD_ALL  # the broad market sets institutional order flow
+bias_lookback: 20
+four_h_gate: soft
+
+# ---- Comparison window -----------------------------------------------------
+# PM (12:00-15:00 NY) carried the signal in the base-rate study; AM (05:00-09:30)
+# did not separate from its own tandem baseline. Both are stated doctrine, so
+# both stay runnable and the experiment reports them apart.
+# AM and PM are separate setups in the source - separate pools, separate
+# forced-flat times - so both are evaluated and one trade is allowed per
+# (session, window), exactly as the Judas runner treats London and New York.
+windows: [am, pm]
+adr_days: 14
+
+# ---- SMT detection ---------------------------------------------------------
+swing_lookback: 2
+pivot_dedupe_bars: 2
+match_tolerance_bars: 1            # absorbs one-bar jitter between markets
+min_window_bars: 12
+
+# ---- SMT quality -----------------------------------------------------------
+require_smt: true                  # false = arm B, the control
+# A BAND, not a floor. The clearest divergence quartile measured the WORST
+# outcome and the highest adverse excursion: a very large divergence is two
+# instruments decorrelating, not an engineered sweep.
+min_clarity_adr: 0.0
+max_clarity_adr: 1000000.0
+min_sweep_depth_adr: 0.0
+
+# ---- Pool ------------------------------------------------------------------
+require_pool_live: true            # the raided low must still have been resting
+require_named_pool: false
+
+# ---- Raid rejection --------------------------------------------------------
+require_rejection: true
+close_back_within_bars: 3
+
+# ---- Reversal --------------------------------------------------------------
+require_reversal: true
+confirmation: cisd_or_mss
+max_minutes_to_reversal: 45
+mss_swing_lookback: 3
+
+# ---- Instrument selection (unresolved in the corpus - an experiment axis) ---
+instrument_selection: diverging
+fixed_instrument: USA500IDXUSD_ALL
+
+# ---- Entry -----------------------------------------------------------------
+entry_style: limit
+entry_arrays: [fvg, ob]
+fvg_entry_depth: ce
+entry_fill_minutes: 120
+
+# ---- Stop ------------------------------------------------------------------
+# The stop sits where the SMT itself would be negated, so the trade dies exactly
+# when its premise does. The ADR floor is mandatory - the Judas post-mortem
+# showed sub-noise stops hand ~43% of the edge to spread.
+stop_mode: smt_invalidation
+stop_buffer_adr: 0.02
+min_stop_adr_pct: 0.05
+max_stop_adr_pct: 0.40
+
+# ---- Target ----------------------------------------------------------------
+target_mode: rr
+target_rr: 2.0
+target_min_rr: 2.0
+# OFF by default, and tested as an axis instead. The ADR cap is a Judas-era FX
+# session rule; for an index PM setup the day has already ranged by 12:00, so a
+# cap measured from the session low routinely leaves no room for 2R and rejects
+# the setup. ICT's index guidance is to hold for time of day, not to cap at a
+# fraction of ADR. Leaving it on also hid a target-inversion bug.
+cap_target_at_adr: false
+adr_target_pct: 0.90
+
+# ---- Session ---------------------------------------------------------------
+exit_ny: null                      # null -> AM 11:00, PM 16:00 per doctrine
+one_trade_per_day: false   # one per (session, window)
+
+# ---- Execution -------------------------------------------------------------
+costs:
+  spread_mode: historical          # the per-bar spread stored in the CSVs
+  gap_fill: open
+  slippage_entry: 0.0
+  slippage_exit: 0.0
+  slippage_stop: 0.0
+  commission_round_turn: 0.0
+
+be_trigger_r: 0.0
+partials: null
+partial_be: true

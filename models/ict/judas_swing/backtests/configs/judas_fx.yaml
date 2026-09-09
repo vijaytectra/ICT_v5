@@ -1,0 +1,67 @@
+name: judas_fx
+description: >
+  Judas Swing doctrine config. Every price bound is expressed relative to the
+  instrument's own 5-day ADR, so this one file runs unchanged on all six FX
+  pairs and all three index CFDs - there is no pip table to keep in sync and
+  no per-instrument tuning to quietly become curve-fitting.
+
+start_date: "2024-04-01"          # data starts 2024-01-01; leaves a 10wk warmup
+instrument: EURUSD                # overridden per instrument by portfolio.py
+# The five-minute chart is the corpus default for this pattern: the stated chart
+# for the whole scalping module (ICT-2017-BREAD-BUTTER-BUY 04:14) and the chart
+# the NY-manipulation profile drops to for the CISD confirmation. On a 2-minute
+# chart the Judas extreme sits a pip or two from the entry array, which puts the
+# stop inside the noise.
+entry_timeframe: "5min"
+use_daily_bias: true              # the Judas is defined against HTF bias
+one_trade_per_day: true           # ~one setup per session, per the source
+
+# ---- Sessions -------------------------------------------------------------
+# London and New York only. Asia and London close are, in ICT's words, "the two
+# smallest tiny little windows of opportunity" that do not pay for their risk.
+sessions: [london, ny]
+
+# ---- Bias -----------------------------------------------------------------
+bias_mode: strict
+
+# ---- Judas leg ------------------------------------------------------------
+# The raid must be rejected: candle 2 or 3 closes back inside the level.
+close_back_within_bars: 3
+min_sweep_wick_pct: 0.0           # the close-back test already excludes run-and-continue
+min_sweep_depth_atr: 0.05         # a one-tick graze is not a raid
+# The protraction is "explicitly a small swing relative to the delivery".
+deep_judas_pct: 0.40
+deep_judas_action: skip
+
+# ---- Reversal -------------------------------------------------------------
+# No reversal within 45 min of the raid = Judas failure = stand down.
+max_minutes_to_reversal: 45
+confirmation: cisd_or_mss
+require_displacement_quality: true
+
+# ---- Entry ----------------------------------------------------------------
+entry_style: limit
+entry_arrays: [fvg, ob]
+fvg_entry_depth: ce               # consequent encroachment, ICT's 2025 default
+min_fvg_atr_mult: 0.25
+entry_fill_minutes: 120
+limit_fill_to_killzone: true
+
+# ---- Stop (ADR-relative, so it travels across instruments) ----------------
+stop_buffer_pts: 0.0              # set per instrument if a spread buffer is wanted
+min_stop_adr_pct: 0.05            # below 5% of a day's range the stop is noise
+max_stop_adr_pct: 0.35            # above 35% the Judas was delivery, not a fake
+max_stop_pts: 1000000             # absolute bounds disabled; ADR bounds govern
+min_stop_pts: 0.0
+min_stop_atr_mult: 0.0
+
+# ---- Target ---------------------------------------------------------------
+target_mode: liquidity
+target_min_rr: 2.5
+cap_target_at_adr: true
+adr_target_pct: 0.90              # bank inside the projection, not at the extreme
+
+# ---- Stand-aside gates ----------------------------------------------------
+skip_if_prior_session_delivered: 0.80
+veto_both_sides_swept: true
+max_range_used_pct: 0.85
